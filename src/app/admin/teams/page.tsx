@@ -1,12 +1,18 @@
+"use client";
+
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import {
   SidebarInset,
   SidebarProvider,
 } from "@/components/ui/sidebar"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { TeamsGrid } from "@/components/teams/teams-grid"
+import { CreateTeamDialog } from "@/components/teams/create-team-dialog"
+import { useUIStore } from "@/stores/ui-store"
 
 export default function TeamsPage() {
+  const { teamDialog } = useUIStore();
+
   return (
     <SidebarProvider
       style={
@@ -24,27 +30,21 @@ export default function TeamsPage() {
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
               <div className="px-4 lg:px-6">
                 <div className="flex items-center justify-between space-y-2 mb-6">
-                  <h2 className="text-3xl font-bold tracking-tight">Teams</h2>
+                  <h2 className="text-3xl font-bold tracking-tight">Team Management</h2>
                 </div>
                 
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Team Management</CardTitle>
-                    <CardDescription>
-                      Create and manage teams with staff assignments.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-center py-8 text-muted-foreground">
-                      Team management interface will be implemented here.
-                    </div>
-                  </CardContent>
-                </Card>
+                <TeamsGrid />
               </div>
             </div>
           </div>
         </div>
       </SidebarInset>
+      
+      {/* Team Creation Dialog */}
+      <CreateTeamDialog 
+        mode={teamDialog.mode}
+        teamId={teamDialog.teamId}
+      />
     </SidebarProvider>
   );
 }
