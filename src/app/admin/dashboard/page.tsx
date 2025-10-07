@@ -165,8 +165,8 @@ const mockTeams: Team[] = [
   {
     id: "1",
     name: "Frontend Development",
-    captain_id: "1",
-    captain: mockStaff.find(s => s.id === "1"),
+    leader_id: "1",
+    leader: mockStaff.find(s => s.id === "1"),
     members: [
       {
         id: "1",
@@ -189,8 +189,8 @@ const mockTeams: Team[] = [
   {
     id: "2",
     name: "Product Management",
-    captain_id: "2",
-    captain: mockStaff.find(s => s.id === "2"),
+    leader_id: "2",
+    leader: mockStaff.find(s => s.id === "2"),
     members: [
       {
         id: "3",
@@ -213,8 +213,8 @@ const mockTeams: Team[] = [
   {
     id: "3",
     name: "Backend Development",
-    captain_id: "5",
-    captain: mockStaff.find(s => s.id === "5"),
+    leader_id: "5",
+    leader: mockStaff.find(s => s.id === "5"),
     members: [
       {
         id: "5",

@@ -128,10 +128,10 @@ export function TeamOverview({ teams, tasks, limit = 3 }: TeamOverviewProps) {
                   </div>
 
                   <div className="flex flex-col items-center space-y-2">
-                    {team.captain && (
+                    {team.leader && (
                       <Avatar className="h-8 w-8">
                         <AvatarFallback className="text-xs">
-                          {getInitials(team.captain.name)}
+                          {getInitials(team.leader.name)}
                         </AvatarFallback>
                       </Avatar>
                     )}

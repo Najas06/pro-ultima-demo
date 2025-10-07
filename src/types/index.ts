@@ -26,6 +26,9 @@ export interface Staff {
   email: string;
   role: string;
   department: string;
+  branch?: string;
+  phone?: string;
+  profile_image_url?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -35,8 +38,9 @@ export interface Team {
   id: string;
   name: string;
   description?: string;
-  captain_id: string;
-  captain?: Staff;
+  leader_id: string;
+  leader?: Staff;
+  branch?: string;
   members?: TeamMember[];
   created_at: string;
   updated_at: string;
@@ -117,6 +121,12 @@ export interface StaffFormData {
 
 export interface TeamFormData {
   name: string;
-  captain_id: string;
-  staff_ids: string[];
+  description?: string;
+  leader_id: string;
+  branch?: string;
+  member_ids: string[];
+}
+
+export interface UpdateTeamFormData extends TeamFormData {
+  id: string;
 }
