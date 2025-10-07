@@ -69,8 +69,8 @@ const mockTeams: Team[] = [
   {
     id: "1",
     name: "Frontend Development",
-    captain_id: "1",
-    captain: mockStaff.find(s => s.id === "1"),
+    leader_id: "1",
+    leader: mockStaff.find(s => s.id === "1"),
     members: [
       {
         id: "1",
@@ -93,8 +93,8 @@ const mockTeams: Team[] = [
   {
     id: "2",
     name: "Product Management",
-    captain_id: "2",
-    captain: mockStaff.find(s => s.id === "2"),
+    leader_id: "2",
+    leader: mockStaff.find(s => s.id === "2"),
     members: [
       {
         id: "3",
@@ -117,8 +117,8 @@ const mockTeams: Team[] = [
   {
     id: "3",
     name: "Backend Development",
-    captain_id: "5",
-    captain: mockStaff.find(s => s.id === "5"),
+    leader_id: "5",
+    leader: mockStaff.find(s => s.id === "5"),
     members: [
       {
         id: "5",
@@ -235,17 +235,17 @@ export function TeamsGrid() {
                     <IconUserCheck className="h-4 w-4" />
                     Team Captain
                   </div>
-                  {team.captain ? (
+                  {team.leader ? (
                     <div className="flex items-center gap-3">
                       <Avatar className="h-8 w-8">
                         <AvatarFallback className="text-xs">
-                          {getInitials(team.captain.name)}
+                          {getInitials(team.leader.name)}
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <p className="text-sm font-medium">{team.captain.name}</p>
+                        <p className="text-sm font-medium">{team.leader.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {team.captain.role} • {team.captain.department}
+                          {team.leader.role} • {team.leader.department}
                         </p>
                       </div>
                     </div>
@@ -282,7 +282,7 @@ export function TeamsGrid() {
                             {member.staff?.role || "Unknown Role"}
                           </p>
                         </div>
-                        {member.staff_id === team.captain_id && (
+                        {member.staff_id === team.leader_id && (
                           <Badge variant="outline" className="text-xs">
                             Captain
                           </Badge>
