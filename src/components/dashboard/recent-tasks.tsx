@@ -127,7 +127,7 @@ export function RecentTasks({ tasks, limit = 5 }: RecentTasksProps) {
                 <div key={task.id} className="flex items-start space-x-3 p-3 rounded-lg border hover:bg-gray-50 transition-colors">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <h4 className="text-sm font-medium truncate">{task.name}</h4>
+                      <h4 className="text-sm font-medium truncate">{task.title}</h4>
                       {isOverdue && (
                         <IconAlertCircle className="h-3 w-3 text-red-500" />
                       )}

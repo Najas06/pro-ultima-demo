@@ -1,18 +1,41 @@
 // Task types
 export interface Task {
   id: string;
-  name: string;
+  title: string;
   description?: string;
   assignee_id?: string;
   assignee?: Staff;
   status: TaskStatus;
   priority: TaskPriority;
   due_date?: string;
+  start_date?: string;
   created_at: string;
   updated_at: string;
-  repeat?: TaskRepeat;
+  allocation_mode: 'individual' | 'team';
   team_id?: string;
   team?: Team;
+  assigned_staff?: TaskAssignment[];
+  is_repeated: boolean;
+  repeat_config?: TaskRepeatConfig;
+  support_files?: string[];
+}
+
+export interface TaskAssignment {
+  id: string;
+  task_id: string;
+  staff_id: string;
+  staff?: Staff;
+  assigned_at: string;
+}
+
+export interface TaskRepeatConfig {
+  frequency: 'daily' | 'weekly' | 'monthly' | 'custom';
+  interval: number;
+  end_date?: string;
+  custom_days?: number[]; // 0-6 for Sunday-Saturday
+  has_specific_time: boolean;
+  start_time?: string;
+  end_time?: string;
 }
 
 export type TaskStatus = 'backlog' | 'todo' | 'in_progress' | 'completed';
@@ -102,14 +125,23 @@ export interface ApiResponse<T = unknown> {
 
 // Form types
 export interface TaskFormData {
-  name: string;
+  title: string;
   description?: string;
-  assignee_id?: string;
+  allocation_mode: 'individual' | 'team';
+  assignee_id?: string; // For individual mode
+  team_id?: string; // For team mode
+  assigned_staff_ids?: string[]; // For team mode - selected team members
   status: TaskStatus;
   priority: TaskPriority;
   due_date?: string;
-  repeat?: TaskRepeat;
-  team_id?: string;
+  start_date?: string;
+  is_repeated: boolean;
+  repeat_config?: TaskRepeatConfig;
+  support_files?: File[];
+}
+
+export interface UpdateTaskFormData extends TaskFormData {
+  id: string;
 }
 
 export interface StaffFormData {
