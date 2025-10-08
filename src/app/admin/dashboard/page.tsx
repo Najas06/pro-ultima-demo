@@ -1,258 +1,57 @@
 import { AppSidebar } from "@/components/app-sidebar"
-import { ChartAreaInteractive } from "@/components/chart-area-interactive"
-import { DataTable } from "@/components/data-table"
-import { SectionCards } from "@/components/section-cards"
 import { SiteHeader } from "@/components/site-header"
 import {
   SidebarInset,
   SidebarProvider,
 } from "@/components/ui/sidebar"
-import { Task, Staff, Team } from "@/types";
+import { getDashboardData } from "@/lib/actions/dashboardActions"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertCircle } from "lucide-react"
+import { DashboardClient } from "@/components/dashboard/dashboard-client"
 
-// Mock data for demonstration - This would come from your database/API
-const mockTasks: Task[] = [
-  {
-    id: "1",
-    name: "Design new landing page",
-    description: "Create a modern and responsive landing page design",
-    status: "backlog",
-    priority: "high",
-    due_date: "2024-01-25T10:00:00Z",
-    created_at: "2024-01-15T10:00:00Z",
-    updated_at: "2024-01-15T10:00:00Z",
-    repeat: "none",
-    assignee: {
-      id: "1",
-      name: "John Doe",
-      email: "john.doe@company.com",
-      role: "designer",
-      department: "design",
-      created_at: "2024-01-15T10:00:00Z",
-      updated_at: "2024-01-15T10:00:00Z",
-    },
-  },
-  {
-    id: "2",
-    name: "Implement user authentication",
-    description: "Add login and registration functionality",
-    status: "todo",
-    priority: "urgent",
-    due_date: "2024-01-20T10:00:00Z",
-    created_at: "2024-01-16T10:00:00Z",
-    updated_at: "2024-01-16T10:00:00Z",
-    repeat: "none",
-    assignee: {
-      id: "2",
-      name: "Jane Smith",
-      email: "jane.smith@company.com",
-      role: "developer",
-      department: "engineering",
-      created_at: "2024-01-16T10:00:00Z",
-      updated_at: "2024-01-16T10:00:00Z",
-    },
-  },
-  {
-    id: "3",
-    name: "Write API documentation",
-    description: "Document all REST API endpoints",
-    status: "in_progress",
-    priority: "medium",
-    due_date: "2024-01-22T10:00:00Z",
-    created_at: "2024-01-17T10:00:00Z",
-    updated_at: "2024-01-17T10:00:00Z",
-    repeat: "none",
-    assignee: {
-      id: "3",
-      name: "Mike Johnson",
-      email: "mike.johnson@company.com",
-      role: "developer",
-      department: "engineering",
-      created_at: "2024-01-17T10:00:00Z",
-      updated_at: "2024-01-17T10:00:00Z",
-    },
-  },
-  {
-    id: "4",
-    name: "Setup CI/CD pipeline",
-    description: "Configure automated testing and deployment",
-    status: "completed",
-    priority: "high",
-    due_date: "2024-01-18T10:00:00Z",
-    created_at: "2024-01-18T10:00:00Z",
-    updated_at: "2024-01-18T10:00:00Z",
-    repeat: "none",
-    assignee: {
-      id: "4",
-      name: "Sarah Wilson",
-      email: "sarah.wilson@company.com",
-      role: "developer",
-      department: "engineering",
-      created_at: "2024-01-18T10:00:00Z",
-      updated_at: "2024-01-18T10:00:00Z",
-    },
-  },
-  {
-    id: "5",
-    name: "User research interviews",
-    description: "Conduct interviews with potential users",
-    status: "completed",
-    priority: "medium",
-    due_date: "2024-01-19T10:00:00Z",
-    created_at: "2024-01-19T10:00:00Z",
-    updated_at: "2024-01-19T10:00:00Z",
-    repeat: "weekly",
-    assignee: {
-      id: "5",
-      name: "Alex Brown",
-      email: "alex.brown@company.com",
-      role: "analyst",
-      department: "product",
-      created_at: "2024-01-19T10:00:00Z",
-      updated_at: "2024-01-19T10:00:00Z",
-    },
-  },
-];
-
-const mockStaff: Staff[] = [
-  {
-    id: "1",
-    name: "John Doe",
-    email: "john.doe@company.com",
-    role: "designer",
-    department: "design",
-    created_at: "2024-01-15T10:00:00Z",
-    updated_at: "2024-01-15T10:00:00Z",
-  },
-  {
-    id: "2",
-    name: "Jane Smith",
-    email: "jane.smith@company.com",
-    role: "developer",
-    department: "engineering",
-    created_at: "2024-01-16T10:00:00Z",
-    updated_at: "2024-01-16T10:00:00Z",
-  },
-  {
-    id: "3",
-    name: "Mike Johnson",
-    email: "mike.johnson@company.com",
-    role: "developer",
-    department: "engineering",
-    created_at: "2024-01-17T10:00:00Z",
-    updated_at: "2024-01-17T10:00:00Z",
-  },
-  {
-    id: "4",
-    name: "Sarah Wilson",
-    email: "sarah.wilson@company.com",
-    role: "developer",
-    department: "engineering",
-    created_at: "2024-01-18T10:00:00Z",
-    updated_at: "2024-01-18T10:00:00Z",
-  },
-  {
-    id: "5",
-    name: "Alex Brown",
-    email: "alex.brown@company.com",
-    role: "analyst",
-    department: "product",
-    created_at: "2024-01-19T10:00:00Z",
-    updated_at: "2024-01-19T10:00:00Z",
-  },
-];
-
-const mockTeams: Team[] = [
-  {
-    id: "1",
-    name: "Frontend Development",
-    leader_id: "1",
-    leader: mockStaff.find(s => s.id === "1"),
-    members: [
-      {
-        id: "1",
-        team_id: "1",
-        staff_id: "1",
-        staff: mockStaff.find(s => s.id === "1"),
-        joined_at: "2024-01-15T10:00:00Z",
-      },
-      {
-        id: "2",
-        team_id: "1",
-        staff_id: "3",
-        staff: mockStaff.find(s => s.id === "3"),
-        joined_at: "2024-01-16T10:00:00Z",
-      },
-    ],
-    created_at: "2024-01-15T10:00:00Z",
-    updated_at: "2024-01-15T10:00:00Z",
-  },
-  {
-    id: "2",
-    name: "Product Management",
-    leader_id: "2",
-    leader: mockStaff.find(s => s.id === "2"),
-    members: [
-      {
-        id: "3",
-        team_id: "2",
-        staff_id: "2",
-        staff: mockStaff.find(s => s.id === "2"),
-        joined_at: "2024-01-16T10:00:00Z",
-      },
-      {
-        id: "4",
-        team_id: "2",
-        staff_id: "4",
-        staff: mockStaff.find(s => s.id === "4"),
-        joined_at: "2024-01-17T10:00:00Z",
-      },
-    ],
-    created_at: "2024-01-16T10:00:00Z",
-    updated_at: "2024-01-16T10:00:00Z",
-  },
-  {
-    id: "3",
-    name: "Backend Development",
-    leader_id: "5",
-    leader: mockStaff.find(s => s.id === "5"),
-    members: [
-      {
-        id: "5",
-        team_id: "3",
-        staff_id: "5",
-        staff: mockStaff.find(s => s.id === "5"),
-        joined_at: "2024-01-19T10:00:00Z",
-      },
-    ],
-    created_at: "2024-01-19T10:00:00Z",
-    updated_at: "2024-01-19T10:00:00Z",
-  },
-];
-
-// This is the server component that fetches data
-export default function DashboardPage() {
-  // TODO: Replace with actual data fetching
-  // const tasks = await getTasks();
-  // const staff = await getStaff();
-  // const teams = await getTeams();
+// This is the server component that fetches real data
+export default async function DashboardPage() {
+  // Fetch real data from database
+  const result = await getDashboardData();
   
-  const tasks = mockTasks;
-  const staff = mockStaff;
-  const teams = mockTeams;
+  // Handle error state
+  if (!result.success || !result.data) {
+    return (
+      <SidebarProvider
+        style={
+          {
+            "--sidebar-width": "calc(var(--spacing) * 72)",
+            "--header-height": "calc(var(--spacing) * 12)",
+          } as React.CSSProperties
+        }
+      >
+        <AppSidebar variant="inset" />
+        <SidebarInset>
+          <SiteHeader />
+          <div className="flex flex-1 flex-col p-6">
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error Loading Dashboard</AlertTitle>
+              <AlertDescription>
+                {result.error || "Failed to load dashboard data. Please check your database connection."}
+              </AlertDescription>
+            </Alert>
+            <div className="mt-4 space-y-2 text-sm text-muted-foreground">
+              <p><strong>Troubleshooting steps:</strong></p>
+              <ol className="list-decimal list-inside space-y-1 ml-2">
+                <li>Verify your Supabase connection in <code className="bg-muted px-1 py-0.5 rounded">.env.local</code></li>
+                <li>Check if the <code className="bg-muted px-1 py-0.5 rounded">tasks</code>, <code className="bg-muted px-1 py-0.5 rounded">staff</code>, and <code className="bg-muted px-1 py-0.5 rounded">teams</code> tables exist</li>
+                <li>Run the SQL schema files in Supabase SQL Editor</li>
+                <li>Check browser console for detailed errors</li>
+              </ol>
+            </div>
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
+    );
+  }
 
-  // Transform our task data to match the existing dashboard format
-  const dashboardData = {
-    tasks: tasks,
-    staff: staff,
-    teams: teams,
-    stats: {
-      totalTasks: tasks.length,
-      completedTasks: tasks.filter(task => task.status === "completed").length,
-      inProgressTasks: tasks.filter(task => task.status === "in_progress").length,
-      totalStaff: staff.length,
-      totalTeams: teams.length,
-    }
-  };
+  const { tasks, staff, teams, stats } = result.data;
 
   return (
     <SidebarProvider
@@ -267,17 +66,18 @@ export default function DashboardPage() {
       <SidebarInset>
         <SiteHeader />
         <div className="flex flex-1 flex-col">
-          <div className="@container/main flex flex-1 flex-col gap-2">
-            <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-              <SectionCards data={dashboardData} />
-              <div className="px-4 lg:px-6">
-                <ChartAreaInteractive data={dashboardData} />
-              </div>
-              <DataTable data={dashboardData} />
-            </div>
-          </div>
+          <DashboardClient 
+            tasks={tasks}
+            staff={staff}
+            teams={teams}
+            stats={stats}
+          />
         </div>
       </SidebarInset>
     </SidebarProvider>
   );
 }
+
+// Enable dynamic rendering (disable static generation)
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;

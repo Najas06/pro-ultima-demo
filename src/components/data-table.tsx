@@ -280,7 +280,7 @@ function DraggableRow({ row }: { row: Row<z.infer<typeof schema>> }) {
 }
 
 interface DashboardData {
-  tasks: { id: string; name: string; status: string; priority: string; assignee?: { name: string }; due_date?: string; created_at: string }[];
+  tasks: { id: string; title: string; status: string; priority: string; assignee?: { name: string }; due_date?: string; created_at: string }[];
   staff: { id: string; name: string }[];
   teams: { id: string; name: string }[];
   stats: {
@@ -300,7 +300,7 @@ export function DataTable({
   // Transform our task data to match the table format
   const initialData = dashboardData.tasks.map(task => ({
     id: task.id,
-    name: task.name,
+    name: task.title,
     status: task.status === "completed" ? "Done" : task.status === "in_progress" ? "In Progress" : "Not Started",
     priority: task.priority,
     assignee: task.assignee?.name || "Unassigned",

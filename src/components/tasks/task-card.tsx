@@ -4,9 +4,10 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Task, TaskPriority, TaskStatus } from "@/types";
 import { IconGripVertical, IconCalendar, IconUser } from "@tabler/icons-react";
+import { Repeat, Users, Clock } from "lucide-react";
 
 interface TaskCardProps {
   task: Task;
@@ -106,18 +107,18 @@ export function TaskCard({ task, onEdit, onDelete }: TaskCardProps) {
     <Card
       ref={setNodeRef}
       style={style}
-      className={`cursor-grab active:cursor-grabbing ${
-        isDragging ? "opacity-50 shadow-lg" : ""
-      } ${isOverdue ? "border-red-200 bg-red-50" : ""}`}
+      className={`group cursor-pointer hover:shadow-lg transition-all duration-200 ${
+        isDragging ? "opacity-50 shadow-2xl scale-105" : ""
+      } ${isOverdue ? "border-red-300 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20" : "hover:border-primary/30"}`}
     >
-      <CardHeader className="pb-2">
-        <div className="flex items-start justify-between">
+      <CardHeader className="">
+        <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
-            <CardTitle className="text-sm font-medium line-clamp-2">
-              {task.name}
+            <CardTitle className="text-sm font-semibold line-clamp-2 group-hover:text-primary transition-colors">
+              {task.title}
             </CardTitle>
             {task.description && (
-              <CardDescription className="text-xs mt-1 line-clamp-2">
+              <CardDescription className="text-xs mt-1.5 line-clamp-2">
                 {task.description}
               </CardDescription>
             )}
@@ -125,66 +126,80 @@ export function TaskCard({ task, onEdit, onDelete }: TaskCardProps) {
           <div
             {...attributes}
             {...listeners}
-            className="ml-2 p-1 hover:bg-gray-100 rounded cursor-grab active:cursor-grabbing"
+            className="flex-shrink-0 p-1.5 hover:bg-muted rounded-md cursor-grab active:cursor-grabbing transition-colors"
+            onClick={(e) => e.stopPropagation()}
           >
-            <IconGripVertical className="h-4 w-4 text-gray-400" />
+            <IconGripVertical className="h-4 w-4 text-muted-foreground" />
           </div>
         </div>
       </CardHeader>
       
-      <CardContent className="pt-0 space-y-3">
-        {/* Priority and Status */}
+      <CardContent className=" space-y-2.5">
+        {/* Priority Badge */}
         <div className="flex items-center gap-2 flex-wrap">
-          <Badge variant={getPriorityColor(task.priority)} className="text-xs">
+          <Badge variant={getPriorityColor(task.priority)} className="text-xs font-medium">
             {formatPriority(task.priority)}
           </Badge>
-          <span className={`text-xs px-2 py-1 rounded-full border ${getStatusColor(task.status)}`}>
-            {formatStatus(task.status)}
-          </span>
+          
+          {/* Repeat Indicator */}
+          {task.is_repeated && (
+            <Badge variant="outline" className="text-xs flex items-center gap-1">
+              <Repeat className="h-3 w-3" />
+              {task.repeat_config?.frequency}
+            </Badge>
+          )}
         </div>
 
         {/* Assignee */}
         {task.assignee && (
           <div className="flex items-center gap-2">
-            <IconUser className="h-3 w-3 text-gray-400" />
-            <Avatar className="h-5 w-5">
-              <AvatarFallback className="text-xs">
+            <Avatar className="h-6 w-6 border">
+              <AvatarImage src={task.assignee.profile_image_url || ""} />
+              <AvatarFallback className="text-xs bg-primary/10">
                 {getInitials(task.assignee.name)}
               </AvatarFallback>
             </Avatar>
-            <span className="text-xs text-gray-600 truncate">
+            <span className="text-xs text-muted-foreground truncate font-medium">
               {task.assignee.name}
             </span>
           </div>
         )}
 
-        {/* Due Date */}
-        {task.due_date && (
-          <div className="flex items-center gap-2">
-            <IconCalendar className="h-3 w-3 text-gray-400" />
-            <span className={`text-xs ${isOverdue ? "text-red-600 font-medium" : "text-gray-600"}`}>
-              {formatDate(task.due_date)}
-            </span>
-          </div>
-        )}
-
-        {/* Repeat Indicator */}
-        {task.repeat && task.repeat !== "none" && (
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-            <span className="text-xs text-gray-500 capitalize">
-              Repeats {task.repeat}
-            </span>
-          </div>
-        )}
-
-        {/* Team */}
-        {task.team && (
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-            <span className="text-xs text-gray-500 truncate">
+        {/* Team Assignment */}
+        {task.allocation_mode === "team" && task.team && (
+          <div className="flex items-center gap-2 p-2 bg-purple-50 dark:bg-purple-950/20 rounded-md border border-purple-100 dark:border-purple-900/30">
+            <Users className="h-3 w-3 text-purple-600 dark:text-purple-400" />
+            <span className="text-xs text-purple-900 dark:text-purple-100 font-medium truncate">
               {task.team.name}
             </span>
+            {task.assigned_staff && task.assigned_staff.length > 0 && (
+              <Badge variant="secondary" className="text-xs ml-auto">
+                {task.assigned_staff.length}
+              </Badge>
+            )}
+          </div>
+        )}
+
+        {/* Due Date */}
+        {task.due_date && (
+          <div className={`flex items-center gap-2 p-2 rounded-md ${
+            isOverdue 
+              ? "bg-red-100 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50" 
+              : "bg-muted/50"
+          }`}>
+            <IconCalendar className={`h-3 w-3 ${isOverdue ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`} />
+            <span className={`text-xs font-medium ${isOverdue ? "text-red-700 dark:text-red-300" : "text-muted-foreground"}`}>
+              {formatDate(task.due_date)}
+              {isOverdue && <span className="ml-1 font-bold">⚠️</span>}
+            </span>
+          </div>
+        )}
+
+        {/* Time Range for Repeated Tasks */}
+        {task.is_repeated && task.repeat_config?.has_specific_time && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Clock className="h-3 w-3" />
+            <span>{task.repeat_config.start_time} - {task.repeat_config.end_time}</span>
           </div>
         )}
       </CardContent>

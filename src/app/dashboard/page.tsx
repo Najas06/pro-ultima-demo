@@ -15,7 +15,7 @@ export default function Page() {
   const dashboardData = {
     tasks: data.map((item: { id: number; header: string; status: string; reviewer: string }) => ({
       id: item.id.toString(),
-      name: item.header,
+      title: item.header,
       status: item.status === "Done" ? "completed" : item.status === "In Process" ? "in_progress" : "todo",
       priority: "medium",
       assignee: { name: item.reviewer },
