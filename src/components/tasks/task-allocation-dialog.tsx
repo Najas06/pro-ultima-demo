@@ -37,9 +37,9 @@ import {
   X,
 } from "lucide-react";
 import { IconCirclePlusFilled } from "@tabler/icons-react";
-import { useTasks, useTeamMembers } from "@/hooks/use-tasks";
-import { useStaff } from "@/hooks/use-staff";
-import { useTeams } from "@/hooks/use-teams";
+import { useOfflineTasks } from "@/hooks/use-offline-tasks";
+import { useOfflineStaff } from "@/hooks/use-offline-staff";
+import { useOfflineTeams } from "@/hooks/use-offline-teams";
 import type { TaskFormData, TaskRepeatConfig, Staff } from "@/types";
 
 interface TaskAllocationDialogProps {
@@ -47,9 +47,21 @@ interface TaskAllocationDialogProps {
 }
 
 export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
-  const { createTask, isCreating } = useTasks();
-  const { employees } = useStaff();
-  const { teams } = useTeams();
+  const { createTask, isCreating } = useOfflineTasks();
+  const { staff } = useOfflineStaff();
+  const { teams } = useOfflineTeams();
+
+  // Transform staff to match expected interface
+  const employees = staff.map(s => ({
+    id: s.id,
+    name: s.name,
+    email: s.email,
+    role: s.role,
+    department: s.department,
+    branch: s.branch,
+    phone: s.phone,
+    profile_image_url: s.profile_image_url,
+  }));
 
   // ============================================
   // STATE MANAGEMENT
@@ -81,9 +93,10 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("17:00");
 
-  // Fetch team members when team is selected
-  const { data: teamMembers, isLoading: loadingTeamMembers } = useTeamMembers(selectedTeam);
-  const teamMembersList = (teamMembers || []) as Staff[];
+  // Get team members from selected team
+  const selectedTeamData = teams.find(t => t.id === selectedTeam);
+  const teamMembersList = selectedTeamData?.members?.map(member => member.staff).filter((staff): staff is Staff => !!staff) || [];
+  const loadingTeamMembers = false; // No loading state needed for offline data
 
   // Reset team members when team changes
   useEffect(() => {
@@ -182,7 +195,13 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
       support_files: files,
     };
 
-    createTask(formData);
+    // Convert TaskRepeatConfig to Record<string, unknown> for offline storage
+    const taskData = {
+      ...formData,
+      repeat_config: formData.repeat_config ? (formData.repeat_config as unknown as Record<string, unknown>) : undefined,
+      support_files: files?.map(file => file.name) || undefined, // Convert File[] to string[]
+    };
+    createTask(taskData);
     resetForm();
     setIsOpen(false);
   };

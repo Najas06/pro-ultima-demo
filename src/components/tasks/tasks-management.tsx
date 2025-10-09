@@ -14,12 +14,22 @@ import { Search, Plus } from "lucide-react";
 import { TaskAllocationDialog } from "./task-allocation-dialog";
 import { TasksTable } from "./tasks-table";
 import { TaskStatsCards } from "./task-stats-cards";
-import { useTasks } from "@/hooks/use-tasks";
+import { useOfflineTasks } from "@/hooks/use-offline-tasks";
+import { SyncStatusIndicator } from "@/components/ui/sync-status-indicator";
 import { TaskStatus, TaskPriority } from "@/types";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function TasksManagement() {
-  const { tasks, isLoading, deleteTask } = useTasks();
+  const { 
+    tasks, 
+    isLoading, 
+    deleteTask, 
+    syncStatus, 
+    isOnline, 
+    pendingOperations, 
+    downloadData, 
+    syncAll 
+  } = useOfflineTasks();
   
   // Local state for filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -45,9 +55,13 @@ export function TasksManagement() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Task Management</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Task Management</h2>
+            <SyncStatusIndicator showDownloadButton={true} />
+          </div>
           <p className="text-sm text-muted-foreground mt-1">
             Manage and track all your tasks in one place
+            {!isOnline && " (Working offline)"}
           </p>
         </div>
         

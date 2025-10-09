@@ -33,19 +33,33 @@ import {
   Trash2,
   Search
 } from "lucide-react";
-import { useStaff, Employee } from "@/hooks/use-staff";
+import { useOfflineStaff } from "@/hooks/use-offline-staff";
 import { toast } from "sonner";
 import { StaffCard } from "./staff-card";
 import { StaffCardSkeleton } from "./staff-card-skeleton";
 import { StaffSearchBar } from "./staff-search-bar";
+import { SyncStatusIndicator } from "@/components/ui/sync-status-indicator";
 import { useMemo } from "react";
+
+// Define Employee interface locally
+interface Employee {
+  id: string;
+  name: string;
+  employeeId: string;
+  email: string;
+  role: string;
+  department: string;
+  branch?: string;
+  phone?: string;
+  profileImage: string | null;
+}
 
 export function EmployeeFormOptimized() {
   // ============================================
-  // CUSTOM HOOK: All staff operations with optimistic updates
+  // CUSTOM HOOK: All staff operations with offline-first functionality
   // ============================================
   const {
-    employees,
+    staff,
     isLoading,
     createStaff,
     updateStaff,
@@ -53,7 +67,25 @@ export function EmployeeFormOptimized() {
     isCreating,
     isUpdating,
     isDeleting,
-  } = useStaff();
+    syncStatus,
+    isOnline,
+    pendingOperations,
+    downloadData,
+    syncAll,
+  } = useOfflineStaff();
+
+  // Transform offline staff to match expected interface
+  const employees = staff.map(s => ({
+    id: s.id,
+    name: s.name,
+    employeeId: s.id, // Use id as employeeId for now
+    email: s.email,
+    role: s.role,
+    department: s.department,
+    branch: s.branch,
+    phone: s.phone,
+    profileImage: s.profile_image_url || null,
+  }));
 
   // ============================================
   // LOCAL STATE: Form and UI
@@ -137,7 +169,14 @@ export function EmployeeFormOptimized() {
 
     // Call the hook's createStaff (which has optimistic updates)
     createStaff({
-      ...formData,
+      name: formData.employeeName,
+      employee_id: formData.employeeId,
+      email: formData.email,
+      password: formData.password,
+      role: formData.role,
+      department: formData.department,
+      branch: formData.branch,
+      phone: formData.phone,
       profileImage: profileImage || undefined,
     });
 
@@ -168,8 +207,13 @@ export function EmployeeFormOptimized() {
 
     // Call the hook's updateStaff (which has optimistic updates)
     updateStaff({
-      ...formData,
       id: editingEmployee.id,
+      name: formData.employeeName,
+      email: formData.email,
+      role: formData.role,
+      department: formData.department,
+      branch: formData.branch,
+      phone: formData.phone,
       profileImage: profileImage || undefined,
       oldProfileImageUrl: editingEmployee.profileImage || undefined,
     });
@@ -248,11 +292,15 @@ export function EmployeeFormOptimized() {
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div className="space-y-1 sm:space-y-2">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
-            Employee Management
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
+              Employee Management
+            </h1>
+            <SyncStatusIndicator showDownloadButton={true} />
+          </div>
           <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
             Manage your team members and their accounts
+            {!isOnline && " (Working offline)"}
           </p>
         </div>
 

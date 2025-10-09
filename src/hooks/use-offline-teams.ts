@@ -39,8 +39,17 @@ export function useOfflineTeams() {
     queryFn: async () => {
       const teamsData = await offlineDB.teams.orderBy('created_at').reverse().toArray();
       
-      // Load team members for each team
+      // Load leader and team members for each team
       for (const team of teamsData) {
+        // Load leader data
+        if (team.leader_id) {
+          const leader = await offlineDB.staff.get(team.leader_id);
+          if (leader) {
+            team.leader = leader;
+          }
+        }
+        
+        // Load team members
         const members = await offlineDB.teamMembers
           .where('team_id')
           .equals(team.id)
