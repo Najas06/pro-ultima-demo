@@ -1,3 +1,5 @@
+"use client";
+
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import {
@@ -6,7 +8,6 @@ import {
 } from "@/components/ui/sidebar"
 import { TasksManagement } from "@/components/tasks/tasks-management"
 
-// This is the server component
 export default function TasksPage() {
   return (
     <SidebarProvider

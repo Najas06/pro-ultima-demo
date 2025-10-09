@@ -30,7 +30,7 @@ const data = {
   user: {
     name: "Admin User",
     email: "admin@proultima.com",
-    avatar: "/avatars/admin.jpg",
+    avatar: "/avatars/admin.svg",
   },
   navMain: [
     {

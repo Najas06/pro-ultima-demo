@@ -21,13 +21,31 @@ const transformOfflineTeam = (team: OfflineTeam) => ({
 
 export function useOfflineTeams() {
   const queryClient = useQueryClient();
-  const [syncStatus, setSyncStatus] = useState(syncService.getStatus());
+  const [syncStatus, setSyncStatus] = useState(() => {
+    // Only access syncService on client-side
+    if (typeof window === 'undefined') return { isOnline: false, isSyncing: false, lastSync: null, pendingOperations: 0 };
+    return syncService.getStatus();
+  });
 
   // Subscribe to sync status changes
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     const unsubscribe = syncService.subscribe(setSyncStatus);
     return unsubscribe;
   }, []);
+
+  // Listen for real-time data updates from other devices/browsers
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const handleDataUpdate = () => {
+      console.log('🔄 Real-time update detected - refreshing teams data');
+      queryClient.invalidateQueries({ queryKey: ['offline-teams'] });
+    };
+
+    window.addEventListener('dataUpdated', handleDataUpdate);
+    return () => window.removeEventListener('dataUpdated', handleDataUpdate);
+  }, [queryClient]);
 
   // Query to fetch all teams (offline-first)
   const {
@@ -37,6 +55,7 @@ export function useOfflineTeams() {
   } = useQuery<OfflineTeam[], Error>({
     queryKey: ["offline-teams"],
     queryFn: async () => {
+      if (typeof window === 'undefined') return [];
       const teamsData = await offlineDB.teams.orderBy('created_at').reverse().toArray();
       
       // Load leader and team members for each team
@@ -70,6 +89,7 @@ export function useOfflineTeams() {
     },
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 10, // 10 minutes
+    enabled: typeof window !== 'undefined', // Only run on client-side
   });
 
   // Create team mutation
@@ -138,6 +158,9 @@ export function useOfflineTeams() {
 
         // Invalidate and refetch
         queryClient.invalidateQueries({ queryKey: ["offline-teams"] });
+
+        // Trigger cross-browser sync
+        syncService.triggerCrossBrowserSync();
 
         return { success: true, data: teamData };
       } catch (error) {
@@ -223,6 +246,9 @@ export function useOfflineTeams() {
         // Invalidate and refetch
         queryClient.invalidateQueries({ queryKey: ["offline-teams"] });
 
+        // Trigger cross-browser sync
+        syncService.triggerCrossBrowserSync();
+
         return { success: true, data: { ...existingTeam, ...updatedTeam } };
       } catch (error) {
         console.error("Error updating team:", error);
@@ -263,6 +289,9 @@ export function useOfflineTeams() {
 
         // Invalidate and refetch
         queryClient.invalidateQueries({ queryKey: ["offline-teams"] });
+
+        // Trigger cross-browser sync
+        syncService.triggerCrossBrowserSync();
 
         return { success: true };
       } catch (error) {

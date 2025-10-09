@@ -320,7 +320,7 @@ export function EmployeeFormOptimized() {
               Add New Employee
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px] w-[95vw] md:w-[90vw] lg:w-[600px] bg-white dark:bg-gray-950 rounded-xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-[700px] w-[95vw] md:w-[90vw] lg:w-[700px] bg-white dark:bg-gray-950 rounded-xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
                 {isEditMode ? "Edit Employee Details" : "Add Employee Details"}
@@ -328,9 +328,9 @@ export function EmployeeFormOptimized() {
             </DialogHeader>
             
             <div className="py-2 sm:py-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
                 {/* Profile Picture Section */}
-                <div className="md:col-span-1 flex flex-col items-center space-y-3 sm:space-y-4 p-4 sm:p-6 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-2xl bg-gray-50/50 dark:bg-gray-900/50">
+                <div className="lg:col-span-1 flex flex-col items-center space-y-3 sm:space-y-4 p-4 sm:p-6 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-2xl bg-gray-50/50 dark:bg-gray-900/50">
                   <div className="relative group">
                     <Avatar className="w-24 h-24 sm:w-28 sm:h-28 border-4 border-white dark:border-gray-800 rounded-2xl shadow-lg">
                       <AvatarImage src={profileImage || ""} className="rounded-2xl object-cover" />
@@ -376,7 +376,7 @@ export function EmployeeFormOptimized() {
                 </div>
 
                 {/* Form Fields Section */}
-                <div className="md:col-span-2 space-y-3 sm:space-y-4">
+                <div className="lg:col-span-2 space-y-3 sm:space-y-4">
                   {/* Name and Employee ID */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div className="space-y-1.5 sm:space-y-2">
@@ -570,13 +570,13 @@ export function EmployeeFormOptimized() {
 
       {/* Employee Cards Grid */}
       {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
           {[...Array(8)].map((_, i) => (
             <StaffCardSkeleton key={i} />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
           {filteredEmployees.map((employee) => (
             <StaffCard
               key={employee.id}
