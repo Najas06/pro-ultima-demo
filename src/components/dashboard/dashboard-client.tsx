@@ -23,6 +23,7 @@ import { Task, Staff, Team } from "@/types";
 import { TaskAllocationDialog } from "@/components/tasks/task-allocation-dialog";
 import { StaffFormDialog } from "@/components/staff/staff-form-dialog";
 import { TeamFormDialog } from "@/components/teams/team-form-dialog";
+import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog";
 import { deleteTask } from "@/lib/actions/taskActions";
 import { deleteStaff } from "@/lib/actions/staffActions";
 import { deleteTeam } from "@/lib/actions/teamActions";
@@ -96,10 +97,8 @@ export function DashboardClient({ tasks, staff, teams, stats }: DashboardClientP
   const [isTeamDialogOpen, setIsTeamDialogOpen] = useState(false);
 
   const handleDeleteTask = async (taskId: string) => {
-    if (confirm("Are you sure you want to delete this task?")) {
-      await deleteTask(taskId);
-      router.refresh();
-    }
+    await deleteTask(taskId);
+    router.refresh();
   };
 
   const handleDeleteStaff = async (staffId: string) => {
@@ -436,13 +435,21 @@ export function DashboardClient({ tasks, staff, teams, stats }: DashboardClientP
                             <Edit className="h-4 w-4 mr-2" />
                             Edit
                           </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleDeleteTask(task.id)}
-                            className="text-red-600"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
+                          <DeleteConfirmationDialog
+                            trigger={
+                              <DropdownMenuItem
+                                onSelect={(e) => e.preventDefault()}
+                                className="text-red-600"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            }
+                            title="Delete Task?"
+                            description="Are you sure you want to delete this task? This action cannot be undone."
+                            onConfirm={() => handleDeleteTask(task.id)}
+                            confirmText="Delete Task"
+                          />
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

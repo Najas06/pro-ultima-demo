@@ -7,10 +7,13 @@ import {
   Users, 
   Search,
 } from "lucide-react";
-import { useTeams } from "@/hooks/use-teams";
+import { useOfflineTeams } from "@/hooks/use-offline-teams";
 import { TeamCard } from "./team-card";
 import { TeamCardSkeleton } from "./team-card-skeleton";
 import { TeamFormDialog } from "./team-form-dialog";
+import { EditTeamDialog } from "./edit-team-dialog";
+import { DeleteTeamDialog } from "./delete-team-dialog";
+import { SyncStatusIndicator } from "@/components/ui/sync-status-indicator";
 import type { Team } from "@/types";
 
 export function TeamsManagement() {
@@ -26,13 +29,21 @@ export function TeamsManagement() {
     isCreating,
     isUpdating,
     isDeleting,
-  } = useTeams();
+    syncStatus,
+    isOnline,
+    pendingOperations,
+    downloadData,
+    syncAll,
+  } = useOfflineTeams();
 
   // ============================================
   // LOCAL STATE
   // ============================================
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
+  const [deletingTeam, setDeletingTeam] = useState<Team | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
   // ============================================
@@ -76,11 +87,19 @@ export function TeamsManagement() {
 
   const handleEdit = (team: Team) => {
     setEditingTeam(team);
-    setIsDialogOpen(true);
+    setIsEditDialogOpen(true);
   };
 
-  const handleDelete = (teamId: string) => {
-    deleteTeam(teamId);
+  const handleDelete = (team: Team) => {
+    setDeletingTeam(team);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleDeleteById = (teamId: string) => {
+    const team = teams.find(t => t.id === teamId);
+    if (team) {
+      handleDelete(team);
+    }
   };
 
   const handleDialogOpenChange = (open: boolean) => {
@@ -88,6 +107,16 @@ export function TeamsManagement() {
     if (!open) {
       setEditingTeam(null);
     }
+  };
+
+  const handleEditDialogClose = () => {
+    setIsEditDialogOpen(false);
+    setEditingTeam(null);
+  };
+
+  const handleDeleteDialogClose = () => {
+    setIsDeleteDialogOpen(false);
+    setDeletingTeam(null);
   };
 
   // ============================================
@@ -98,11 +127,15 @@ export function TeamsManagement() {
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div className="space-y-1 sm:space-y-2">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
-            Teams Management
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
+              Teams Management
+            </h1>
+            <SyncStatusIndicator showDownloadButton={true} />
+          </div>
           <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
             Create and manage your teams with leaders and members
+            {!isOnline && " (Working offline)"}
           </p>
         </div>
 
@@ -189,17 +222,33 @@ export function TeamsManagement() {
         </div>
       )}
 
-      {/* Create/Edit Team Dialog */}
+      {/* Create Team Dialog */}
       <TeamFormDialog
-        team={editingTeam}
+        team={null}
         isOpen={isDialogOpen}
         onOpenChange={handleDialogOpenChange}
         onSubmit={handleCreateTeam}
         onUpdate={handleUpdateTeam}
-        onDelete={handleDelete}
+        onDelete={handleDeleteById}
         isSubmitting={isCreating}
         isUpdating={isUpdating}
         isDeleting={isDeleting}
+      />
+
+      {/* Edit Team Dialog */}
+      {editingTeam && (
+        <EditTeamDialog
+          team={editingTeam}
+          isOpen={isEditDialogOpen}
+          onClose={handleEditDialogClose}
+        />
+      )}
+
+      {/* Delete Team Dialog */}
+      <DeleteTeamDialog
+        team={deletingTeam}
+        isOpen={isDeleteDialogOpen}
+        onClose={handleDeleteDialogClose}
       />
     </div>
   );
