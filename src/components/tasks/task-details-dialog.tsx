@@ -43,9 +43,9 @@ import {
   Eye,
   Edit as EditIcon,
 } from "lucide-react";
-import { useTasks, useTeamMembers } from "@/hooks/use-tasks";
-import { useStaff } from "@/hooks/use-staff";
-import { useTeams } from "@/hooks/use-teams";
+import { useOfflineTasks } from "@/hooks/use-offline-tasks";
+import { useOfflineStaff } from "@/hooks/use-offline-staff";
+import { useOfflineTeams } from "@/hooks/use-offline-teams";
 import type { Task, TaskRepeatConfig, Staff, TaskStatus, TaskPriority } from "@/types";
 
 interface TaskDetailsDialogProps {
@@ -61,9 +61,21 @@ export function TaskDetailsDialog({
   onOpenChange,
   onDelete,
 }: TaskDetailsDialogProps) {
-  const { updateTask, isUpdating, deleteTask, isDeleting } = useTasks();
-  const { employees } = useStaff();
-  const { teams } = useTeams();
+  const { updateTask, isUpdating, deleteTask, isDeleting } = useOfflineTasks();
+  const { staff } = useOfflineStaff();
+  const { teams } = useOfflineTeams();
+
+  // Transform staff to match expected interface
+  const employees = staff.map(s => ({
+    id: s.id,
+    name: s.name,
+    email: s.email,
+    role: s.role,
+    department: s.department,
+    branch: s.branch,
+    phone: s.phone,
+    profile_image_url: s.profile_image_url,
+  }));
 
   const [isEditing, setIsEditing] = useState(false);
   
@@ -94,9 +106,10 @@ export function TaskDetailsDialog({
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("17:00");
 
-  // Fetch team members when team is selected
-  const { data: teamMembers, isLoading: loadingTeamMembers } = useTeamMembers(formData.team_id);
-  const teamMembersList = (teamMembers || []) as Staff[];
+  // Get team members from selected team
+  const selectedTeamData = teams.find(t => t.id === formData.team_id);
+  const teamMembersList = selectedTeamData?.members?.map(member => member.staff).filter((staff): staff is Staff => !!staff) || [];
+  const loadingTeamMembers = false; // No loading state needed for offline data
 
   // Available members
   const availableMembers = teamMembersList;
@@ -177,16 +190,12 @@ export function TaskDetailsDialog({
       id: task.id,
       title: formData.title,
       description: formData.description,
-      allocation_mode: formData.allocation_mode,
-      assignee_id: formData.allocation_mode === "individual" ? formData.assignee_id : undefined,
-      team_id: formData.allocation_mode === "team" ? formData.team_id : undefined,
-      assigned_staff_ids: formData.allocation_mode === "team" ? formData.member_ids : undefined,
       status: formData.status,
       priority: formData.priority,
       due_date: formData.due_date?.toISOString(),
       start_date: formData.is_repeated ? formData.due_date?.toISOString() : undefined,
       is_repeated: formData.is_repeated,
-      repeat_config: repeatConfig,
+      repeat_config: repeatConfig ? (repeatConfig as unknown as Record<string, unknown>) : undefined,
     });
 
     setIsEditing(false);

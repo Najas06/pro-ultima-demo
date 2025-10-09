@@ -27,7 +27,7 @@ import {
   Crown,
   UserPlus
 } from "lucide-react";
-import { useStaff } from "@/hooks/use-staff";
+import { useOfflineStaff } from "@/hooks/use-offline-staff";
 import { toast } from "sonner";
 import type { Team } from "@/types";
 
@@ -67,8 +67,20 @@ export function TeamFormDialog({
   isUpdating = false,
   isDeleting = false,
 }: TeamFormDialogProps) {
-  const { employees } = useStaff();
+  const { staff } = useOfflineStaff();
   const isEditMode = !!team;
+
+  // Transform staff to match expected interface
+  const employees = staff.map(s => ({
+    id: s.id,
+    name: s.name,
+    email: s.email,
+    role: s.role,
+    department: s.department,
+    branch: s.branch,
+    phone: s.phone,
+    profile_image_url: s.profile_image_url,
+  }));
 
   // ============================================
   // LOCAL STATE

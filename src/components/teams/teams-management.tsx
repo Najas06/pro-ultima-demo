@@ -126,7 +126,7 @@ export function TeamsManagement() {
     <div className="space-y-4 sm:space-y-6 p-4 sm:p-6 lg:p-8">
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-        <div className="space-y-1 sm:space-y-2">
+        <div className="space-y-1 sm:space-y-2 flex flex-col gap-2">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
               Teams Management
