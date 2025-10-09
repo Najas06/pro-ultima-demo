@@ -67,6 +67,10 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
   const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
   const [dueDate, setDueDate] = useState<Date>();
   const [files, setFiles] = useState<File[]>([]);
+  
+  // Popover states for calendars
+  const [isDueDateOpen, setIsDueDateOpen] = useState(false);
+  const [isEndDateOpen, setIsEndDateOpen] = useState(false);
 
   // Repeat settings
   const [repeatFrequency, setRepeatFrequency] = useState<'daily' | 'weekly' | 'monthly' | 'custom'>('daily');
@@ -197,45 +201,44 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
         )}
       </DialogTrigger>
 
-      <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] max-w-[800px] max-h-[90vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold">
+          <DialogTitle className="text-xl sm:text-2xl font-bold">
             Task Allocation Form
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6 mt-4">
+        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6 mt-4">
           {/* Allocation Mode Toggle */}
-          <div className="space-y-4">
+          <div className="space-y-3">
             <Label className="text-sm font-medium">Allocation Mode *</Label>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                 <Button
                   type="button"
                   variant={allocationMode === 'individual' ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => setAllocationMode('individual')}
-                  className="flex items-center gap-2"
+                  className="flex items-center justify-center gap-2 w-full sm:w-auto"
                 >
                   <User className="h-4 w-4" />
-                  Individual Staff
+                  <span className="text-xs sm:text-sm">Individual</span>
                 </Button>
                 <Button
                   type="button"
                   variant={allocationMode === 'team' ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => setAllocationMode('team')}
-                  className="flex items-center gap-2"
+                  className="flex items-center justify-center gap-2 w-full sm:w-auto"
                 >
                   <Users className="h-4 w-4" />
-                  Team Assignment
+                  <span className="text-xs sm:text-sm">Team</span>
                 </Button>
               </div>
-              <div className="text-sm text-muted-foreground">
+              <div className="text-xs sm:text-sm text-muted-foreground">
                 {allocationMode === 'individual'
-                  ? 'Assign task to a specific staff member'
-                  : 'Assign task to multiple team members'
-                }
+                  ? 'Assign to single staff'
+                  : 'Assign to team members'}
               </div>
             </div>
           </div>
@@ -311,7 +314,7 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
 
                 <div className="space-y-2">
                   <Label htmlFor="repeat-end-date" className="text-xs font-medium">End Date (Optional)</Label>
-                  <Popover>
+                  <Popover open={isEndDateOpen} onOpenChange={setIsEndDateOpen}>
                     <PopoverTrigger asChild>
                       <Button
                         type="button"
@@ -326,7 +329,10 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
                       <Calendar
                         mode="single"
                         selected={repeatEndDate}
-                        onSelect={setRepeatEndDate}
+                        onSelect={(date) => {
+                          setRepeatEndDate(date);
+                          setIsEndDateOpen(false);
+                        }}
                         initialFocus
                         disabled={(date) => date < new Date()}
                       />
@@ -371,7 +377,7 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
                 </div>
 
                 {hasSpecificTime && (
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="start-time" className="text-xs font-medium">Start Time</Label>
                       <Input
@@ -413,7 +419,7 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
           </div>
 
           {/* Assignment Fields */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="space-y-4">
             {/* Individual Staff Selection */}
             {allocationMode === 'individual' && (
               <div className="space-y-2">
@@ -469,52 +475,58 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
               </div>
             )}
 
-            {/* Priority */}
-            <div className="space-y-2">
-              <Label htmlFor="priority" className="text-sm font-medium">Priority *</Label>
-              <Select
-                value={priority}
-                onValueChange={(value: 'low' | 'medium' | 'high' | 'urgent') => setPriority(value)}
-                required
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select priority" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="low">Low</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="urgent">Urgent</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Priority and Due Date */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Priority */}
+              <div className="space-y-2">
+                <Label htmlFor="priority" className="text-sm font-medium">Priority *</Label>
+                <Select
+                  value={priority}
+                  onValueChange={(value: 'low' | 'medium' | 'high' | 'urgent') => setPriority(value)}
+                  required
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="urgent">Urgent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-            {/* Due Date */}
-            <div className="space-y-2">
-              <Label htmlFor="due-date" className="text-sm font-medium">
-                {isRepeatedTask ? "Start Date *" : "Due Date *"}
-              </Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className={cn("w-full justify-start text-left font-normal", !dueDate && "text-muted-foreground")}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dueDate ? format(dueDate, "PPP") : "Pick a date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={dueDate}
-                    onSelect={setDueDate}
-                    initialFocus
-                    disabled={(date) => date < new Date()}
-                  />
-                </PopoverContent>
-              </Popover>
+              {/* Due Date */}
+              <div className="space-y-2">
+                <Label htmlFor="due-date" className="text-sm font-medium">
+                  {isRepeatedTask ? "Start Date *" : "Due Date *"}
+                </Label>
+                <Popover open={isDueDateOpen} onOpenChange={setIsDueDateOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={cn("w-full justify-start text-left font-normal", !dueDate && "text-muted-foreground")}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {dueDate ? format(dueDate, "PPP") : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={dueDate}
+                      onSelect={(date) => {
+                        setDueDate(date);
+                        setIsDueDateOpen(false);
+                      }}
+                      initialFocus
+                      disabled={(date) => date < new Date()}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
 
             {/* Team Member Selection (only for team mode) */}
@@ -638,11 +650,11 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
           </div>
 
           {/* Form Actions */}
-          <div className="flex gap-3 pt-4">
+          <div className="flex flex-col sm:flex-row gap-3 pt-4">
             <Button 
               type="button" 
               variant="outline" 
-              className="flex-1" 
+              className="flex-1 w-full" 
               disabled={isCreating}
               onClick={() => setIsOpen(false)}
             >
@@ -650,15 +662,15 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
             </Button>
             <Button
               type="submit"
-              className="flex-1"
+              className="flex-1 w-full"
               disabled={isCreating || (allocationMode === 'individual' ? !selectedIndividualStaff : selectedTeamMembers.length === 0)}
             >
               {isCreating ? "Creating Task..." :
                 isRepeatedTask
-                  ? `Create Repeated Task${allocationMode === 'team' ? ` for ${selectedTeamMembers.length} Staff` : ''}`
+                  ? `Create Repeated Task${allocationMode === 'team' && selectedTeamMembers.length > 0 ? ` for ${selectedTeamMembers.length} Staff` : ''}`
                   : allocationMode === 'individual'
                     ? "Assign to Individual Staff"
-                    : `Allocate to ${selectedTeamMembers.length} Staff`
+                    : selectedTeamMembers.length > 0 ? `Allocate to ${selectedTeamMembers.length} Staff` : 'Create Task'
               }
             </Button>
           </div>

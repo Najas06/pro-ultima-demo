@@ -32,7 +32,7 @@ import type { Team } from "@/types";
 interface TeamCardProps {
   team: Team;
   onEdit: (team: Team) => void;
-  onDelete: (teamId: string) => void;
+  onDelete: (team: Team) => void;
   isDeleting?: boolean;
 }
 
@@ -92,7 +92,7 @@ export function TeamCard({ team, onEdit, onDelete, isDeleting }: TeamCardProps) 
                 Edit Team
               </DropdownMenuItem>
               <DropdownMenuItem 
-                onClick={() => onDelete(team.id)} 
+                onClick={() => onDelete(team)} 
                 className="cursor-pointer text-red-600 dark:text-red-400 focus:text-red-600"
                 disabled={isDeleting}
               >
@@ -105,7 +105,7 @@ export function TeamCard({ team, onEdit, onDelete, isDeleting }: TeamCardProps) 
       </CardHeader>
 
       {/* Card Content */}
-      <CardContent className="relative space-y-4 ">
+      <CardContent className="relative space-y-4 flex flex-col justify-between">
         {/* Team Leader */}
         <div className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-amber-50/50 to-transparent dark:from-amber-950/20 dark:to-transparent border border-amber-100/50 dark:border-amber-900/30">
           <div className="relative">
@@ -186,27 +186,12 @@ export function TeamCard({ team, onEdit, onDelete, isDeleting }: TeamCardProps) 
         )}
       </CardContent>
 
-      {/* Card Footer */}
-      <CardFooter className="relative pt-4 border-t flex gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => onEdit(team)}
-          className="flex-1 group/btn hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:text-blue-700 dark:hover:text-blue-300 hover:border-blue-300 transition-all duration-200"
-        >
-          <Edit className="w-4 h-4 mr-2 group-hover/btn:rotate-12 transition-transform" />
-          Edit
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => onDelete(team.id)}
-          disabled={isDeleting}
-          className="flex-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-700 dark:hover:text-red-400 hover:border-red-300 dark:border-red-800 transition-all duration-200"
-        >
-          <Trash2 className="w-4 h-4 mr-2" />
-          {isDeleting ? "Deleting..." : "Delete"}
-        </Button>
+      {/* Card Footer - Clean footer with just stats */}
+      <CardFooter className="relative pt-4 border-t">
+        <div className="flex items-center justify-between w-full text-xs text-muted-foreground">
+          <span>Created {new Date().toLocaleDateString()}</span>
+          <span>{totalMembers} member{totalMembers !== 1 ? 's' : ''}</span>
+        </div>
       </CardFooter>
 
       {/* Decorative Corner Accent */}

@@ -67,6 +67,10 @@ export function TaskDetailsDialog({
 
   const [isEditing, setIsEditing] = useState(false);
   
+  // Popover states for calendars
+  const [isDueDateOpen, setIsDueDateOpen] = useState(false);
+  const [isEndDateOpen, setIsEndDateOpen] = useState(false);
+  
   // Form state
   const [formData, setFormData] = useState({
     title: "",
@@ -507,7 +511,7 @@ export function TaskDetailsDialog({
               {formData.is_repeated ? "Start Date" : "Due Date"}
             </Label>
             {isEditing ? (
-              <Popover>
+              <Popover open={isDueDateOpen} onOpenChange={setIsDueDateOpen}>
                 <PopoverTrigger asChild>
                   <Button
                     type="button"
@@ -522,7 +526,10 @@ export function TaskDetailsDialog({
                   <Calendar
                     mode="single"
                     selected={formData.due_date}
-                    onSelect={(date) => handleInputChange("due_date", date)}
+                    onSelect={(date) => {
+                      handleInputChange("due_date", date);
+                      setIsDueDateOpen(false);
+                    }}
                     initialFocus
                   />
                 </PopoverContent>
@@ -592,7 +599,7 @@ export function TaskDetailsDialog({
 
                     <div className="space-y-2">
                       <Label htmlFor="repeat-end-date" className="text-xs font-medium">End Date (Optional)</Label>
-                      <Popover>
+                      <Popover open={isEndDateOpen} onOpenChange={setIsEndDateOpen}>
                         <PopoverTrigger asChild>
                           <Button
                             type="button"
@@ -607,7 +614,10 @@ export function TaskDetailsDialog({
                           <Calendar
                             mode="single"
                             selected={repeatEndDate}
-                            onSelect={setRepeatEndDate}
+                            onSelect={(date) => {
+                              setRepeatEndDate(date);
+                              setIsEndDateOpen(false);
+                            }}
                             initialFocus
                             disabled={(date) => date < new Date()}
                           />
