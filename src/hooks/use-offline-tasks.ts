@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { offlineDB, OfflineTask, OfflineTaskAssignment } from "@/lib/offline/database";
 import { syncService } from "@/lib/offline/sync-service";
+import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
 
@@ -24,19 +25,49 @@ const transformOfflineTask = (task: OfflineTask) => ({
   team: task.team,
   assigned_staff: task.assigned_staff,
   is_repeated: task.is_repeated,
-  repeat_config: task.repeat_config ? JSON.parse(task.repeat_config) : undefined,
+  repeat_config: task.repeat_config ? 
+    (typeof task.repeat_config === 'string' ? 
+      (() => {
+        try {
+          return JSON.parse(task.repeat_config);
+        } catch (error) {
+          console.warn('Failed to parse repeat_config:', task.repeat_config, error);
+          return undefined;
+        }
+      })() : 
+      task.repeat_config
+    ) : 
+    undefined,
   support_files: task.support_files,
 });
 
 export function useOfflineTasks() {
   const queryClient = useQueryClient();
-  const [syncStatus, setSyncStatus] = useState(syncService.getStatus());
+  const [syncStatus, setSyncStatus] = useState(() => {
+    // Only access syncService on client-side
+    if (typeof window === 'undefined') return { isOnline: false, isSyncing: false, lastSync: null, pendingOperations: 0 };
+    return syncService.getStatus();
+  });
 
   // Subscribe to sync status changes
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     const unsubscribe = syncService.subscribe(setSyncStatus);
     return unsubscribe;
   }, []);
+
+  // Listen for real-time data updates from other devices/browsers
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const handleDataUpdate = () => {
+      console.log('🔄 Real-time update detected - refreshing tasks data');
+      queryClient.invalidateQueries({ queryKey: ['offline-tasks'] });
+    };
+
+    window.addEventListener('dataUpdated', handleDataUpdate);
+    return () => window.removeEventListener('dataUpdated', handleDataUpdate);
+  }, [queryClient]);
 
   // Query to fetch all tasks (offline-first)
   const {
@@ -46,6 +77,7 @@ export function useOfflineTasks() {
   } = useQuery<OfflineTask[], Error>({
     queryKey: ["offline-tasks"],
     queryFn: async () => {
+      if (typeof window === 'undefined') return [];
       const tasksData = await offlineDB.tasks.orderBy('created_at').reverse().toArray();
       
       // Load related data for each task
@@ -87,6 +119,7 @@ export function useOfflineTasks() {
     },
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 10, // 10 minutes
+    enabled: typeof window !== 'undefined', // Only run on client-side
   });
 
   // Create task mutation
@@ -183,6 +216,9 @@ export function useOfflineTasks() {
         // Invalidate and refetch
         queryClient.invalidateQueries({ queryKey: ["offline-tasks"] });
 
+        // Trigger cross-browser sync
+        syncService.triggerCrossBrowserSync();
+
         return { success: true, data: taskData };
       } catch (error) {
         console.error("Error creating task:", error);
@@ -254,11 +290,14 @@ export function useOfflineTasks() {
           due_date: updateData.due_date,
           start_date: updateData.start_date,
           is_repeated: updateData.is_repeated,
-          repeat_config: updateData.repeat_config,
+          repeat_config: updateData.repeat_config ? JSON.stringify(updateData.repeat_config) : undefined,
         });
 
         // Invalidate and refetch
         queryClient.invalidateQueries({ queryKey: ["offline-tasks"] });
+
+        // Trigger cross-browser sync
+        syncService.triggerCrossBrowserSync();
 
         return { success: true, data: { ...existingTask, ...updatedTask } };
       } catch (error) {
@@ -300,6 +339,9 @@ export function useOfflineTasks() {
 
         // Invalidate and refetch
         queryClient.invalidateQueries({ queryKey: ["offline-tasks"] });
+
+        // Trigger cross-browser sync
+        syncService.triggerCrossBrowserSync();
 
         return { success: true };
       } catch (error) {
