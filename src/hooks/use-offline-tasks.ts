@@ -214,10 +214,13 @@ export function useOfflineTasks() {
         }
 
         // Invalidate and refetch
-        queryClient.invalidateQueries({ queryKey: ["offline-tasks"] });
+        await queryClient.refetchQueries({ queryKey: ["offline-tasks"] });
 
         // Trigger cross-browser sync
         syncService.triggerCrossBrowserSync();
+
+        // Dispatch custom event for real-time updates
+        window.dispatchEvent(new CustomEvent('dataUpdated'));
 
         return { success: true, data: taskData };
       } catch (error) {
@@ -294,10 +297,13 @@ export function useOfflineTasks() {
         });
 
         // Invalidate and refetch
-        queryClient.invalidateQueries({ queryKey: ["offline-tasks"] });
+        await queryClient.refetchQueries({ queryKey: ["offline-tasks"] });
 
         // Trigger cross-browser sync
         syncService.triggerCrossBrowserSync();
+
+        // Dispatch custom event for real-time updates
+        window.dispatchEvent(new CustomEvent('dataUpdated'));
 
         return { success: true, data: { ...existingTask, ...updatedTask } };
       } catch (error) {
