@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -94,6 +95,7 @@ const formatStatus = (status: string) => {
 };
 
 export function DashboardClient() {
+  const queryClient = useQueryClient();
   const { tasks, deleteTask } = useOfflineTasks();
   const { staff, deleteStaff } = useOfflineStaff();
   const { teams, deleteTeam } = useOfflineTeams();
@@ -102,6 +104,29 @@ export function DashboardClient() {
   const [isTeamDialogOpen, setIsTeamDialogOpen] = useState(false);
   const [statusTimeRange, setStatusTimeRange] = useState("30d");
   const [priorityTimeRange, setPriorityTimeRange] = useState("30d");
+
+  // Listen for data updates and refetch all queries
+  useEffect(() => {
+    const handleDataUpdate = () => {
+      // Invalidate all offline queries to trigger refetch
+      queryClient.invalidateQueries({ queryKey: ['offline-tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['offline-staff'] });
+      queryClient.invalidateQueries({ queryKey: ['offline-teams'] });
+    };
+
+    // Listen for custom dataUpdated event
+    window.addEventListener('dataUpdated', handleDataUpdate);
+
+    // Also set up an interval to periodically refetch data
+    const intervalId = setInterval(() => {
+      handleDataUpdate();
+    }, 5000); // Refetch every 5 seconds
+
+    return () => {
+      window.removeEventListener('dataUpdated', handleDataUpdate);
+      clearInterval(intervalId);
+    };
+  }, [queryClient]);
 
   // Calculate stats from offline data
   const stats = {
