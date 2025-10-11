@@ -28,6 +28,7 @@ import { useOfflineStaff } from "@/hooks/use-offline-staff";
 import { useOfflineTeams } from "@/hooks/use-offline-teams";
 import { SyncStatusIndicator } from "@/components/ui/sync-status-indicator";
 import { useRouter } from "next/navigation";
+import { syncService } from "@/lib/offline/sync-service";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from "@/components/ui/chart";
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -104,6 +105,60 @@ export function DashboardClient() {
   const [isTeamDialogOpen, setIsTeamDialogOpen] = useState(false);
   const [statusTimeRange, setStatusTimeRange] = useState("30d");
   const [priorityTimeRange, setPriorityTimeRange] = useState("30d");
+
+  // Cleanup duplicate assignments
+  const handleCleanupDuplicates = async () => {
+    try {
+      const removed = await syncService.cleanupDuplicateTaskAssignments();
+      if (removed > 0) {
+        // Refresh data after cleanup
+        queryClient.invalidateQueries({ queryKey: ['offline-tasks'] });
+        queryClient.invalidateQueries({ queryKey: ['offline-staff'] });
+        queryClient.invalidateQueries({ queryKey: ['offline-teams'] });
+        window.dispatchEvent(new CustomEvent('dataUpdated'));
+      }
+    } catch (error) {
+      console.error('Failed to cleanup duplicates:', error);
+    }
+  };
+
+  // Clear all data (nuclear option)
+  const handleClearAllData = async () => {
+    if (confirm('⚠️ This will clear ALL local data including tasks, staff, and teams. This action cannot be undone. Are you sure?')) {
+      try {
+        await syncService.clearAllData();
+        // Refresh data after clearing
+        queryClient.invalidateQueries({ queryKey: ['offline-tasks'] });
+        queryClient.invalidateQueries({ queryKey: ['offline-staff'] });
+        queryClient.invalidateQueries({ queryKey: ['offline-teams'] });
+        window.dispatchEvent(new CustomEvent('dataUpdated'));
+        alert('✅ All local data cleared. The app will sync fresh data from Supabase.');
+      } catch (error) {
+        console.error('Failed to clear data:', error);
+        alert('❌ Failed to clear data. Check console for details.');
+      }
+    }
+  };
+
+  // Force sync from Supabase
+  const handleForceSync = async () => {
+    try {
+      const success = await syncService.forceSyncFromSupabase();
+      if (success) {
+        // Refresh data after sync
+        queryClient.invalidateQueries({ queryKey: ['offline-tasks'] });
+        queryClient.invalidateQueries({ queryKey: ['offline-staff'] });
+        queryClient.invalidateQueries({ queryKey: ['offline-teams'] });
+        window.dispatchEvent(new CustomEvent('dataUpdated'));
+        alert('✅ Data synced from Supabase successfully!');
+      } else {
+        alert('❌ Failed to sync from Supabase. Check console for details.');
+      }
+    } catch (error) {
+      console.error('Failed to force sync:', error);
+      alert('❌ Failed to sync from Supabase. Check console for details.');
+    }
+  };
 
   // Listen for data updates and refetch all queries
   useEffect(() => {
@@ -215,6 +270,30 @@ export function DashboardClient() {
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
             <SyncStatusIndicator showDownloadButton={false} />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCleanupDuplicates}
+              className="text-xs"
+            >
+              🧹 Fix Data
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleClearAllData}
+              className="text-xs"
+            >
+              🗑️ Clear All
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleForceSync}
+              className="text-xs"
+            >
+              🔄 Force Sync
+            </Button>
           </div>
           <p className="text-muted-foreground mt-1">
             Overview of your tasks, staff, and teams

@@ -144,7 +144,7 @@ export function useOfflineStaff() {
           await syncService.triggerCrossBrowserSync();
           
           // Invalidate and refetch to update UI
-          await queryClient.refetchQueries({ queryKey: ["offline-staff"] });
+          queryClient.invalidateQueries({ queryKey: ["offline-staff"] });
           
           // Dispatch custom event for real-time updates
           window.dispatchEvent(new CustomEvent('dataUpdated'));
@@ -196,7 +196,7 @@ export function useOfflineStaff() {
           await syncService.triggerCrossBrowserSync();
 
           // Invalidate and refetch
-          await queryClient.refetchQueries({ queryKey: ["offline-staff"] });
+          queryClient.invalidateQueries({ queryKey: ["offline-staff"] });
           
           // Dispatch custom event for real-time updates
           window.dispatchEvent(new CustomEvent('dataUpdated'));
@@ -300,7 +300,7 @@ export function useOfflineStaff() {
           await syncService.triggerCrossBrowserSync();
           
           // Invalidate and refetch to update UI
-          await queryClient.refetchQueries({ queryKey: ["offline-staff"] });
+          queryClient.invalidateQueries({ queryKey: ["offline-staff"] });
           
           // Dispatch custom event for real-time updates
           window.dispatchEvent(new CustomEvent('dataUpdated'));
@@ -346,7 +346,7 @@ export function useOfflineStaff() {
           await syncService.triggerCrossBrowserSync();
 
           // Invalidate and refetch
-          await queryClient.refetchQueries({ queryKey: ["offline-staff"] });
+          queryClient.invalidateQueries({ queryKey: ["offline-staff"] });
           
           // Dispatch custom event for real-time updates
           window.dispatchEvent(new CustomEvent('dataUpdated'));

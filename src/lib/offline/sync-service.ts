@@ -1,4 +1,4 @@
-import { offlineDB, SyncOperation, type OfflineStaff, type OfflineTeam, type OfflineTask } from './database';
+import { offlineDB, SyncOperation, type OfflineStaff, type OfflineTeam, type OfflineTask, type OfflineTaskAssignment, type OfflineTeamMember } from './database';
 import { createClient } from '../supabase/client';
 import type { SupabaseClient, SyncOperationData } from './types';
 
@@ -50,7 +50,7 @@ class SyncService {
 
     // 1. Listen for localStorage changes from other browser tabs/windows (same device)
     window.addEventListener('storage', (event) => {
-      if (event.key === 'crossBrowserData' && event.newValue) {
+      if (event.key === 'proultima_cross_browser_data' && event.newValue) {
         console.log('🔄 Real-time sync: Detected data change in another browser tab');
         this.handleRealtimeDataChange(event.newValue);
       }
@@ -93,6 +93,22 @@ class SyncService {
             this.handleSupabaseRealtimeChange('tasks', payload);
           }
         )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'task_assignments' },
+          (payload) => {
+            console.log('🔔 Real-time: Task assignment changed on another device', payload);
+            this.handleSupabaseRealtimeChange('task_assignments', payload);
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'team_members' },
+          (payload) => {
+            console.log('🔔 Real-time: Team member changed on another device', payload);
+            this.handleSupabaseRealtimeChange('team_members', payload);
+          }
+        )
         .subscribe((status) => {
           if (status === 'SUBSCRIBED') {
             console.log('✅ Supabase Realtime: Connected for cross-device sync');
@@ -126,6 +142,20 @@ class SyncService {
         } else if (table === 'tasks') {
           await offlineDB.tasks.put(newRecord as unknown as OfflineTask);
           console.log(`📝 Real-time: Updated task in local DB`);
+        } else if (table === 'task_assignments') {
+          await offlineDB.taskAssignments.put({
+            ...newRecord,
+            _isOffline: false,
+            _lastSync: Date.now()
+          } as unknown as OfflineTaskAssignment);
+          console.log(`📝 Real-time: Updated task assignment in local DB`);
+        } else if (table === 'team_members') {
+          await offlineDB.teamMembers.put({
+            ...newRecord,
+            _isOffline: false,
+            _lastSync: Date.now()
+          } as unknown as OfflineTeamMember);
+          console.log(`📝 Real-time: Updated team member in local DB`);
         }
       } else if (eventType === 'DELETE' && oldRecord) {
         // Remove the record from IndexedDB
@@ -137,7 +167,15 @@ class SyncService {
           console.log(`🗑️ Real-time: Deleted team from local DB`);
         } else if (table === 'tasks' && typeof oldRecord.id === 'string') {
           await offlineDB.tasks.delete(oldRecord.id);
-          console.log(`🗑️ Real-time: Deleted task from local DB`);
+          // Also delete related task assignments
+          await offlineDB.taskAssignments.where('task_id').equals(oldRecord.id).delete();
+          console.log(`🗑️ Real-time: Deleted task and assignments from local DB`);
+        } else if (table === 'task_assignments' && typeof oldRecord.id === 'string') {
+          await offlineDB.taskAssignments.delete(oldRecord.id);
+          console.log(`🗑️ Real-time: Deleted task assignment from local DB`);
+        } else if (table === 'team_members' && typeof oldRecord.id === 'string') {
+          await offlineDB.teamMembers.delete(oldRecord.id);
+          console.log(`🗑️ Real-time: Deleted team member from local DB`);
         }
       }
 
@@ -358,12 +396,22 @@ class SyncService {
     
     switch (op.operation) {
       case 'create':
-        const { data: insertData, error: insertError } = await supabase.from('staff').insert(op.data);
+        const { data: insertedStaff, error: insertError } = await supabase.from('staff').insert(op.data).select().single();
         if (insertError) {
           console.error('Staff insert error:', insertError);
           throw insertError;
         }
-        console.log('Staff inserted successfully:', insertData);
+        
+        // Update IndexedDB with the Supabase ID to prevent duplicates
+        if (insertedStaff && op.data.id && typeof op.data.id === 'string' && op.data.id.startsWith('offline_')) {
+          await offlineDB.staff.delete(op.data.id); // Remove offline version
+          await offlineDB.staff.put({
+            ...insertedStaff,
+            _isOffline: false,
+            _lastSync: Date.now()
+          }); // Add with Supabase ID
+        }
+        console.log('Staff inserted successfully:', insertedStaff);
         break;
       case 'update':
         const { data: updateData, error: updateError } = await supabase.from('staff').update(op.data).eq('id', op.data.id);
@@ -388,7 +436,18 @@ class SyncService {
   private async syncTeamOperation(op: SyncOperation, supabase: ReturnType<typeof createClient>) {
     switch (op.operation) {
       case 'create':
-        await supabase.from('teams').insert(op.data);
+        const { data: insertedTeam, error: insertError } = await supabase.from('teams').insert(op.data).select().single();
+        if (insertError) throw insertError;
+        
+        // Update IndexedDB with the Supabase ID to prevent duplicates
+        if (insertedTeam && op.data.id && typeof op.data.id === 'string' && op.data.id.startsWith('offline_')) {
+          await offlineDB.teams.delete(op.data.id); // Remove offline version
+          await offlineDB.teams.put({
+            ...insertedTeam,
+            _isOffline: false,
+            _lastSync: Date.now()
+          }); // Add with Supabase ID
+        }
         break;
       case 'update':
         await supabase.from('teams').update(op.data).eq('id', op.data.id);
@@ -418,7 +477,18 @@ class SyncService {
   private async syncTaskOperation(op: SyncOperation, supabase: ReturnType<typeof createClient>) {
     switch (op.operation) {
       case 'create':
-        await supabase.from('tasks').insert(op.data);
+        const { data: insertedTask, error: insertError } = await supabase.from('tasks').insert(op.data).select().single();
+        if (insertError) throw insertError;
+        
+        // Update IndexedDB with the Supabase ID to prevent duplicates
+        if (insertedTask && op.data.id && typeof op.data.id === 'string' && op.data.id.startsWith('offline_')) {
+          await offlineDB.tasks.delete(op.data.id); // Remove offline version
+          await offlineDB.tasks.put({
+            ...insertedTask,
+            _isOffline: false,
+            _lastSync: Date.now()
+          }); // Add with Supabase ID
+        }
         break;
       case 'update':
         await supabase.from('tasks').update(op.data).eq('id', op.data.id);
@@ -626,42 +696,78 @@ class SyncService {
         const data = JSON.parse(crossBrowserData);
         console.log('Found cross-browser data, syncing...', data);
         
-        // Sync staff data - merge instead of replace
+        // Sync staff data - update existing or add new
         if (data.staff && data.staff.length > 0) {
-          const existingStaff = await offlineDB.staff.toArray();
-          const existingStaffIds = new Set(existingStaff.map(s => s.id));
-          
-          // Add new staff that don't exist locally
-          const newStaff = data.staff.filter((s: OfflineStaff) => !existingStaffIds.has(s.id));
-          if (newStaff.length > 0) {
-            await offlineDB.staff.bulkAdd(newStaff.map((s: OfflineStaff) => ({ ...s, _isOffline: true, _lastSync: Date.now() })));
-            console.log(`Added ${newStaff.length} new staff from cross-browser sync`);
+          for (const staff of data.staff) {
+            const existing = await offlineDB.staff.get(staff.id);
+            if (!existing || new Date(staff.updated_at || staff.created_at) > new Date(existing.updated_at || existing.created_at)) {
+              await offlineDB.staff.put({
+                ...staff,
+                _isOffline: false,
+                _lastSync: Date.now()
+              });
+              console.log(`Updated staff ${staff.name} from cross-browser sync`);
+            }
           }
         }
         
-        // Sync teams data - merge instead of replace
+        // Sync teams data - update existing or add new
         if (data.teams && data.teams.length > 0) {
-          const existingTeams = await offlineDB.teams.toArray();
-          const existingTeamIds = new Set(existingTeams.map(t => t.id));
-          
-          // Add new teams that don't exist locally
-          const newTeams = data.teams.filter((t: OfflineTeam) => !existingTeamIds.has(t.id));
-          if (newTeams.length > 0) {
-            await offlineDB.teams.bulkAdd(newTeams.map((t: OfflineTeam) => ({ ...t, _isOffline: true, _lastSync: Date.now() })));
-            console.log(`Added ${newTeams.length} new teams from cross-browser sync`);
+          for (const team of data.teams) {
+            const existing = await offlineDB.teams.get(team.id);
+            if (!existing || new Date(team.updated_at || team.created_at) > new Date(existing.updated_at || existing.created_at)) {
+              await offlineDB.teams.put({
+                ...team,
+                _isOffline: false,
+                _lastSync: Date.now()
+              });
+              console.log(`Updated team ${team.name} from cross-browser sync`);
+            }
           }
         }
         
-        // Sync tasks data - merge instead of replace
+        // Sync tasks data - update existing or add new
         if (data.tasks && data.tasks.length > 0) {
-          const existingTasks = await offlineDB.tasks.toArray();
-          const existingTaskIds = new Set(existingTasks.map(task => task.id));
-          
-          // Add new tasks that don't exist locally
-          const newTasks = data.tasks.filter((task: OfflineTask) => !existingTaskIds.has(task.id));
-          if (newTasks.length > 0) {
-            await offlineDB.tasks.bulkAdd(newTasks.map((task: OfflineTask) => ({ ...task, _isOffline: true, _lastSync: Date.now() })));
-            console.log(`Added ${newTasks.length} new tasks from cross-browser sync`);
+          for (const task of data.tasks) {
+            const existing = await offlineDB.tasks.get(task.id);
+            if (!existing || new Date(task.updated_at || task.created_at) > new Date(existing.updated_at || existing.created_at)) {
+              await offlineDB.tasks.put({
+                ...task,
+                _isOffline: false,
+                _lastSync: Date.now()
+              });
+              console.log(`Updated task ${task.title} from cross-browser sync`);
+            }
+          }
+        }
+        
+        // Sync task assignments data - update existing or add new
+        if (data.taskAssignments && data.taskAssignments.length > 0) {
+          for (const assignment of data.taskAssignments) {
+            const existing = await offlineDB.taskAssignments.get(assignment.id);
+            if (!existing || new Date(assignment.assigned_at || assignment._lastSync || 0) > new Date(existing.assigned_at || existing._lastSync || 0)) {
+              await offlineDB.taskAssignments.put({
+                ...assignment,
+                _isOffline: false,
+                _lastSync: Date.now()
+              });
+              console.log(`Updated task assignment ${assignment.id} from cross-browser sync`);
+            }
+          }
+        }
+        
+        // Sync team members data - update existing or add new
+        if (data.teamMembers && data.teamMembers.length > 0) {
+          for (const member of data.teamMembers) {
+            const existing = await offlineDB.teamMembers.get(member.id);
+            if (!existing || new Date(member.joined_at || member._lastSync || 0) > new Date(existing.joined_at || existing._lastSync || 0)) {
+              await offlineDB.teamMembers.put({
+                ...member,
+                _isOffline: false,
+                _lastSync: Date.now()
+              });
+              console.log(`Updated team member ${member.id} from cross-browser sync`);
+            }
           }
         }
         
@@ -678,16 +784,20 @@ class SyncService {
       const staff = await offlineDB.staff.toArray();
       const teams = await offlineDB.teams.toArray();
       const tasks = await offlineDB.tasks.toArray();
+      const taskAssignments = await offlineDB.taskAssignments.toArray();
+      const teamMembers = await offlineDB.teamMembers.toArray();
       
       const crossBrowserData = {
         staff: staff, // Save all staff data
         teams: teams, // Save all teams data
         tasks: tasks, // Save all tasks data
+        taskAssignments: taskAssignments, // Save all task assignments
+        teamMembers: teamMembers, // Save all team members
         timestamp: Date.now()
       };
       
       localStorage.setItem('proultima_cross_browser_data', JSON.stringify(crossBrowserData));
-      console.log(`Cross-browser data saved: ${staff.length} staff, ${teams.length} teams, ${tasks.length} tasks`);
+      console.log(`Cross-browser data saved: ${staff.length} staff, ${teams.length} teams, ${tasks.length} tasks, ${taskAssignments.length} assignments, ${teamMembers.length} members`);
     } catch (error) {
       console.error('Failed to save cross-browser data:', error);
     }
@@ -856,7 +966,7 @@ class SyncService {
     this.listeners.forEach(listener => listener(status));
   }
 
-  // Migrate existing data to fix format issues
+  // Migrate existing data to fix format issues and remove duplicates
   private async migrateData(): Promise<void> {
     try {
       console.log('Starting data migration...');
@@ -872,9 +982,54 @@ class SyncService {
         }
       }
       
+      // Remove duplicate tasks based on title and created_at
+      await this.removeDuplicateTasks();
+      
       console.log('Data migration completed');
     } catch (error) {
       console.error('Data migration failed:', error);
+    }
+  }
+
+  // Remove duplicate tasks to fix sync issues
+  private async removeDuplicateTasks(): Promise<void> {
+    try {
+      console.log('Checking for duplicate tasks...');
+      const tasks = await offlineDB.tasks.toArray();
+      const seenTasks = new Map<string, OfflineTask>();
+      const duplicatesToDelete: string[] = [];
+      
+      // Sort tasks by created_at to keep the oldest one
+      const sortedTasks = tasks.sort((a, b) => 
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      );
+      
+      for (const task of sortedTasks) {
+        const key = `${task.title}_${task.description}_${task.assignee_id}_${task.team_id}`;
+        
+        if (seenTasks.has(key)) {
+          // This is a duplicate, mark for deletion
+          duplicatesToDelete.push(task.id);
+          console.log(`Found duplicate task: ${task.title} (${task.id})`);
+        } else {
+          seenTasks.set(key, task);
+        }
+      }
+      
+      // Delete duplicates
+      if (duplicatesToDelete.length > 0) {
+        console.log(`Removing ${duplicatesToDelete.length} duplicate tasks...`);
+        for (const taskId of duplicatesToDelete) {
+          await offlineDB.tasks.delete(taskId);
+          // Also delete related task assignments
+          await offlineDB.taskAssignments.where('task_id').equals(taskId).delete();
+        }
+        console.log('Duplicate tasks removed successfully');
+      } else {
+        console.log('No duplicate tasks found');
+      }
+    } catch (error) {
+      console.error('Failed to remove duplicate tasks:', error);
     }
   }
 
@@ -884,6 +1039,343 @@ class SyncService {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('dataUpdated'));
       console.log('🔄 Triggered query invalidation for real-time updates');
+    }
+  }
+
+  // Debug function to check sync status
+  public async debugSyncStatus(): Promise<void> {
+    try {
+      const isOnline = this.isOnline;
+      const lastSync = localStorage.getItem('lastSyncTime');
+      
+      console.log('=== SYNC DEBUG INFO ===');
+      console.log(`Online: ${isOnline}`);
+      console.log(`Last sync: ${lastSync || 'Never'}`);
+      
+      // Check localStorage data
+      const crossBrowserData = localStorage.getItem('proultima_cross_browser_data');
+      if (crossBrowserData) {
+        const data = JSON.parse(crossBrowserData);
+        console.log('Cross-browser data:', {
+          staff: data.staff?.length || 0,
+          teams: data.teams?.length || 0,
+          tasks: data.tasks?.length || 0,
+          taskAssignments: data.taskAssignments?.length || 0,
+          teamMembers: data.teamMembers?.length || 0,
+          timestamp: new Date(data.timestamp).toLocaleString()
+        });
+      }
+      
+      // Check IndexedDB data
+      const staff = await offlineDB.staff.toArray();
+      const teams = await offlineDB.teams.toArray();
+      const tasks = await offlineDB.tasks.toArray();
+      const taskAssignments = await offlineDB.taskAssignments.toArray();
+      const teamMembers = await offlineDB.teamMembers.toArray();
+      
+      console.log('IndexedDB data:', {
+        staff: staff.length,
+        teams: teams.length,
+        tasks: tasks.length,
+        taskAssignments: taskAssignments.length,
+        teamMembers: teamMembers.length
+      });
+      
+      // Check for specific sync issues
+      const teamTasks = tasks.filter(t => t.allocation_mode === 'team');
+      console.log('Team tasks:', teamTasks.map(t => ({
+        id: t.id,
+        title: t.title,
+        team_id: t.team_id,
+        assignments: taskAssignments.filter(ta => ta.task_id === t.id).length
+      })));
+      
+      console.log('=====================');
+    } catch (error) {
+      console.error('Debug sync status failed:', error);
+    }
+  }
+
+  // Clean up duplicate task assignments
+  async cleanupDuplicateTaskAssignments() {
+    try {
+      console.log('🧹 Cleaning up duplicate task assignments...');
+      
+      // Get all task assignments
+      const allAssignments = await offlineDB.taskAssignments.toArray();
+      
+      // Group by task_id and staff_id to find duplicates
+      const assignmentMap = new Map<string, OfflineTaskAssignment[]>();
+      
+      for (const assignment of allAssignments) {
+        const key = `${assignment.task_id}_${assignment.staff_id}`;
+        if (!assignmentMap.has(key)) {
+          assignmentMap.set(key, []);
+        }
+        assignmentMap.get(key)!.push(assignment);
+      }
+      
+      let duplicatesRemoved = 0;
+      
+      // Remove duplicates, keeping the oldest one
+      for (const [key, assignments] of assignmentMap) {
+        if (assignments.length > 1) {
+          console.log(`Found ${assignments.length} duplicate assignments for ${key}`);
+          
+          // Sort by creation time (oldest first)
+          assignments.sort((a, b) => {
+            const aTime = new Date(a.assigned_at).getTime();
+            const bTime = new Date(b.assigned_at).getTime();
+            return aTime - bTime;
+          });
+          
+          // Keep the first (oldest), remove the rest
+          const toKeep = assignments[0];
+          const toRemove = assignments.slice(1);
+          
+          for (const assignment of toRemove) {
+            await offlineDB.taskAssignments.delete(assignment.id);
+            duplicatesRemoved++;
+          }
+          
+          console.log(`Kept assignment ${toKeep.id}, removed ${toRemove.length} duplicates`);
+        }
+      }
+      
+      console.log(`✅ Cleanup complete: removed ${duplicatesRemoved} duplicate task assignments`);
+      
+      // Trigger cross-browser sync to update other tabs
+      await this.triggerCrossBrowserSync();
+      
+      return duplicatesRemoved;
+    } catch (error) {
+      console.error('❌ Error cleaning up duplicate task assignments:', error);
+      return 0;
+    }
+  }
+
+  // Clear all IndexedDB data (nuclear option)
+  async clearAllData() {
+    try {
+      console.log('🗑️ Clearing all IndexedDB data...');
+      
+      await offlineDB.tasks.clear();
+      await offlineDB.staff.clear();
+      await offlineDB.teams.clear();
+      await offlineDB.taskAssignments.clear();
+      await offlineDB.teamMembers.clear();
+      await offlineDB.syncQueue.clear();
+      
+      console.log('✅ All IndexedDB data cleared');
+      
+      // Clear localStorage as well
+      localStorage.removeItem('proultima_cross_browser_data');
+      localStorage.removeItem('lastSyncTime');
+      
+      // Trigger cross-browser sync
+      await this.triggerCrossBrowserSync();
+      
+      return true;
+    } catch (error) {
+      console.error('❌ Error clearing IndexedDB data:', error);
+      return false;
+    }
+  }
+
+  // Force sync all data from Supabase (bypasses cache)
+  async forceSyncFromSupabase() {
+    try {
+      console.log('🔄 Force syncing all data from Supabase...');
+      
+      if (!this.isOnline) {
+        console.warn('⚠️ Cannot sync - app is offline');
+        return false;
+      }
+
+      const supabase = createClient();
+      
+      // Fetch all data from Supabase
+      const [tasksResult, staffResult, teamsResult, taskAssignmentsResult, teamMembersResult] = await Promise.all([
+        supabase.from('tasks').select('*'),
+        supabase.from('staff').select('*'),
+        supabase.from('teams').select('*'),
+        supabase.from('task_assignments').select('*'),
+        supabase.from('team_members').select('*')
+      ]);
+
+      // Check for errors
+      const errors = [tasksResult.error, staffResult.error, teamsResult.error, taskAssignmentsResult.error, teamMembersResult.error].filter(Boolean);
+      if (errors.length > 0) {
+        console.error('❌ Supabase fetch errors:', errors);
+        return false;
+      }
+
+      // Clear IndexedDB first
+      await offlineDB.tasks.clear();
+      await offlineDB.staff.clear();
+      await offlineDB.teams.clear();
+      await offlineDB.taskAssignments.clear();
+      await offlineDB.teamMembers.clear();
+
+      // Add fresh data to IndexedDB
+      if (tasksResult.data) {
+        for (const task of tasksResult.data) {
+          await offlineDB.tasks.put({
+            ...task,
+            _isOffline: false,
+            _lastSync: Date.now()
+          });
+        }
+      }
+
+      if (staffResult.data) {
+        for (const staff of staffResult.data) {
+          await offlineDB.staff.put({
+            ...staff,
+            _isOffline: false,
+            _lastSync: Date.now()
+          });
+        }
+      }
+
+      if (teamsResult.data) {
+        for (const team of teamsResult.data) {
+          await offlineDB.teams.put({
+            ...team,
+            _isOffline: false,
+            _lastSync: Date.now()
+          });
+        }
+      }
+
+      if (taskAssignmentsResult.data) {
+        for (const assignment of taskAssignmentsResult.data) {
+          await offlineDB.taskAssignments.put({
+            ...assignment,
+            _isOffline: false,
+            _lastSync: Date.now()
+          });
+        }
+      }
+
+      if (teamMembersResult.data) {
+        for (const member of teamMembersResult.data) {
+          await offlineDB.teamMembers.put({
+            ...member,
+            _isOffline: false,
+            _lastSync: Date.now()
+          });
+        }
+      }
+
+      // Update sync timestamp
+      this.lastSync = Date.now();
+      localStorage.setItem('lastSyncTime', this.lastSync.toString());
+
+      console.log(`✅ Force sync complete: ${tasksResult.data?.length || 0} tasks, ${staffResult.data?.length || 0} staff, ${teamsResult.data?.length || 0} teams`);
+
+      // Trigger cross-browser sync
+      await this.triggerCrossBrowserSync();
+
+      return true;
+    } catch (error) {
+      console.error('❌ Error force syncing from Supabase:', error);
+      return false;
+    }
+  }
+
+  // Manual IndexedDB update after Supabase operations (bypasses real-time sync)
+  async updateIndexedDBAfterSupabaseOperation(operation: 'create' | 'update' | 'delete', table: string, data: any) {
+    try {
+      console.log(`🔧 Manual IndexedDB update: ${operation} ${table}`, data);
+      
+      switch (table) {
+        case 'tasks':
+          if (operation === 'delete') {
+            await offlineDB.tasks.delete(data.id);
+            // Also delete related task assignments
+            await offlineDB.taskAssignments.where('task_id').equals(data.id).delete();
+            console.log(`🗑️ Manually deleted task ${data.id} from IndexedDB`);
+          } else if (operation === 'create' || operation === 'update') {
+            await offlineDB.tasks.put({
+              ...data,
+              _isOffline: false,
+              _lastSync: Date.now()
+            });
+            console.log(`📝 Manually ${operation}d task ${data.id} in IndexedDB`);
+          }
+          break;
+          
+        case 'task_assignments':
+          if (operation === 'delete') {
+            await offlineDB.taskAssignments.delete(data.id);
+            console.log(`🗑️ Manually deleted task assignment ${data.id} from IndexedDB`);
+          } else if (operation === 'create' || operation === 'update') {
+            await offlineDB.taskAssignments.put({
+              ...data,
+              _isOffline: false,
+              _lastSync: Date.now()
+            });
+            console.log(`📝 Manually ${operation}d task assignment ${data.id} in IndexedDB`);
+          }
+          break;
+          
+        case 'staff':
+          if (operation === 'delete') {
+            await offlineDB.staff.delete(data.id);
+            console.log(`🗑️ Manually deleted staff ${data.id} from IndexedDB`);
+          } else if (operation === 'create' || operation === 'update') {
+            await offlineDB.staff.put({
+              ...data,
+              _isOffline: false,
+              _lastSync: Date.now()
+            });
+            console.log(`📝 Manually ${operation}d staff ${data.id} in IndexedDB`);
+          }
+          break;
+          
+        case 'teams':
+          if (operation === 'delete') {
+            await offlineDB.teams.delete(data.id);
+            // Also delete related team members
+            await offlineDB.teamMembers.where('team_id').equals(data.id).delete();
+            console.log(`🗑️ Manually deleted team ${data.id} from IndexedDB`);
+          } else if (operation === 'create' || operation === 'update') {
+            await offlineDB.teams.put({
+              ...data,
+              _isOffline: false,
+              _lastSync: Date.now()
+            });
+            console.log(`📝 Manually ${operation}d team ${data.id} in IndexedDB`);
+          }
+          break;
+          
+        case 'team_members':
+          if (operation === 'delete') {
+            await offlineDB.teamMembers.delete(data.id);
+            console.log(`🗑️ Manually deleted team member ${data.id} from IndexedDB`);
+          } else if (operation === 'create' || operation === 'update') {
+            await offlineDB.teamMembers.put({
+              ...data,
+              _isOffline: false,
+              _lastSync: Date.now()
+            });
+            console.log(`📝 Manually ${operation}d team member ${data.id} in IndexedDB`);
+          }
+          break;
+      }
+      
+      // Update last sync time
+      this.lastSync = Date.now();
+      localStorage.setItem('lastSyncTime', this.lastSync.toString());
+      
+      // Trigger cross-browser sync
+      await this.triggerCrossBrowserSync();
+      
+      return true;
+    } catch (error) {
+      console.error(`❌ Error manually updating IndexedDB for ${operation} ${table}:`, error);
+      return false;
     }
   }
 

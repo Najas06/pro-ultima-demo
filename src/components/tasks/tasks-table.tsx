@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Table,
   TableBody,
@@ -19,7 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog";
-import { MoreVertical, Edit, Trash2, Calendar, Repeat, Users, User } from "lucide-react";
+import { MoreVertical, Edit, Trash2, Calendar, Repeat, Users, User, Network } from "lucide-react";
 import { Task, TaskStatus, TaskPriority } from "@/types";
 import { EditTaskDialog } from "./edit-task-dialog";
 import { format } from "date-fns";
@@ -30,6 +31,7 @@ interface TasksTableProps {
 }
 
 export function TasksTable({ tasks, onDelete }: TasksTableProps) {
+  const router = useRouter();
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
 
@@ -78,14 +80,12 @@ export function TasksTable({ tasks, onDelete }: TasksTableProps) {
         name: task.team.name,
         image: null,
         type: "team" as const,
-        count: task.assigned_staff?.length || 0,
       };
     } else if (task.assignee) {
       return {
         name: task.assignee.name,
         image: task.assignee.profile_image_url,
         type: "individual" as const,
-        count: 1,
       };
     }
     return null;
@@ -123,7 +123,12 @@ export function TasksTable({ tasks, onDelete }: TasksTableProps) {
                       <div className="flex items-start gap-3">
                         <div className="flex-1 min-w-0">
                           <div className="font-medium flex items-center gap-2">
-                            {task.title}
+                            <button
+                              onClick={() => router.push(`/admin/tasks/${task.id}/diagram`)}
+                              className="hover:text-primary hover:underline transition-colors text-left"
+                            >
+                              {task.title}
+                            </button>
                             {task.is_repeated && (
                               <Repeat className="h-3 w-3 text-muted-foreground" />
                             )}
@@ -156,7 +161,7 @@ export function TasksTable({ tasks, onDelete }: TasksTableProps) {
                             <div className="font-medium text-sm">{assigneeInfo.name}</div>
                             <span className="text-muted-foreground text-xs">
                               {assigneeInfo.type === "team" 
-                                ? `${assigneeInfo.count} members` 
+                                ? "Team" 
                                 : task.assignee?.role || "Staff"}
                             </span>
                           </div>
@@ -193,6 +198,15 @@ export function TasksTable({ tasks, onDelete }: TasksTableProps) {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/admin/tasks/${task.id}/diagram`);
+                            }}
+                          >
+                            <Network className="h-4 w-4 mr-2" />
+                            View Diagram
+                          </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={(e) => {
                               e.stopPropagation();
