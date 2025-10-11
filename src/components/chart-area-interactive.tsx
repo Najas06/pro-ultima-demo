@@ -3,7 +3,7 @@
 import * as React from "react"
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts"
 
-import { useIsMobile } from "@/hooks/use-mobile"
+// import { useIsMobile } from "@/hooks/use-mobile"
 import {
   Card,
   CardAction,
@@ -71,7 +71,7 @@ const generateTaskChartData = (tasks: { id: string; status: string; updated_at: 
 
 export function ChartAreaInteractive({ data }: { data: DashboardData }) {
   const chartData = generateTaskChartData(data.tasks);
-  const isMobile = useIsMobile()
+  // const isMobile = useIsMobile()
   const [dateRange, setDateRange] = React.useState("7d")
   const [chartType, setChartType] = React.useState("area")
 

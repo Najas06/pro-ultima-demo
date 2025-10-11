@@ -144,7 +144,10 @@ export function useOfflineStaff() {
           await syncService.triggerCrossBrowserSync();
           
           // Invalidate and refetch to update UI
-          queryClient.invalidateQueries({ queryKey: ["offline-staff"] });
+          await queryClient.refetchQueries({ queryKey: ["offline-staff"] });
+          
+          // Dispatch custom event for real-time updates
+          window.dispatchEvent(new CustomEvent('dataUpdated'));
 
           return { 
             success: true, 
@@ -193,7 +196,10 @@ export function useOfflineStaff() {
           await syncService.triggerCrossBrowserSync();
 
           // Invalidate and refetch
-          queryClient.invalidateQueries({ queryKey: ["offline-staff"] });
+          await queryClient.refetchQueries({ queryKey: ["offline-staff"] });
+          
+          // Dispatch custom event for real-time updates
+          window.dispatchEvent(new CustomEvent('dataUpdated'));
 
           return { success: true, data: staffData };
         }
@@ -294,7 +300,10 @@ export function useOfflineStaff() {
           await syncService.triggerCrossBrowserSync();
           
           // Invalidate and refetch to update UI
-          queryClient.invalidateQueries({ queryKey: ["offline-staff"] });
+          await queryClient.refetchQueries({ queryKey: ["offline-staff"] });
+          
+          // Dispatch custom event for real-time updates
+          window.dispatchEvent(new CustomEvent('dataUpdated'));
 
           return { 
             success: true, 
@@ -337,7 +346,10 @@ export function useOfflineStaff() {
           await syncService.triggerCrossBrowserSync();
 
           // Invalidate and refetch
-          queryClient.invalidateQueries({ queryKey: ["offline-staff"] });
+          await queryClient.refetchQueries({ queryKey: ["offline-staff"] });
+          
+          // Dispatch custom event for real-time updates
+          window.dispatchEvent(new CustomEvent('dataUpdated'));
 
           return { success: true, data: { ...existingStaff, ...updatedStaff } };
         }

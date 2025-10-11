@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
@@ -20,7 +19,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { 
-  User, 
   Mail, 
   Phone, 
   MapPin, 
@@ -29,7 +27,6 @@ import {
   MoreVertical,
   Briefcase,
   Building2,
-  Calendar,
   Shield,
   Star
 } from "lucide-react";

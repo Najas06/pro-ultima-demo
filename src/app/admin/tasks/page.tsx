@@ -8,6 +8,8 @@ import {
 } from "@/components/ui/sidebar"
 import { TasksManagement } from "@/components/tasks/tasks-management"
 
+export const dynamic = 'force-dynamic';
+
 export default function TasksPage() {
   return (
     <SidebarProvider

@@ -7,8 +7,7 @@ import {
   IconUsers, 
   IconListDetails, 
   IconChartBar,
-  IconSettings,
-  IconBell
+
 } from "@tabler/icons-react";
 
 interface QuickActionsProps {

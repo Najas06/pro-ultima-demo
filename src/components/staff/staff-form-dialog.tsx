@@ -51,7 +51,8 @@ export function StaffFormDialog({ trigger }: StaffFormDialogProps) {
       } else {
         alert(result.error || "Failed to create staff member");
       }
-    } catch (error) {
+    } catch (error: unknown) {
+      console.error(error);
       alert("An error occurred");
     } finally {
       setLoading(false);

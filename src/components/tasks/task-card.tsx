@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Task, TaskPriority, TaskStatus } from "@/types";
-import { IconGripVertical, IconCalendar, IconUser } from "@tabler/icons-react";
+import { IconGripVertical, IconCalendar } from "@tabler/icons-react";
 import { Repeat, Users, Clock } from "lucide-react";
 
 interface TaskCardProps {
@@ -59,10 +59,10 @@ const formatStatus = (status: TaskStatus) => {
       return "Backlog";
     case "completed":
       return "Completed";
-    default:
-      return status;
-  }
-};
+      default:
+        return status;
+    }
+  };
 
 const getInitials = (name: string) => {
   return name

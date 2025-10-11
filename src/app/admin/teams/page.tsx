@@ -8,6 +8,8 @@ import {
 } from "@/components/ui/sidebar"
 import { TeamsManagement } from "@/components/teams/teams-management"
 
+export const dynamic = 'force-dynamic';
+
 export default function TeamsPage() {
   return (
     <SidebarProvider
