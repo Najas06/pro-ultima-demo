@@ -97,6 +97,16 @@ export class OfflineDatabase extends Dexie {
       syncQueue: 'id, table, operation, timestamp, retries'
     });
 
+    // Version 2: Add compound index for task assignments
+    this.version(2).stores({
+      staff: 'id, name, email, role, department, branch, created_at, updated_at, _lastSync',
+      teams: 'id, name, leader_id, branch, created_at, updated_at, _lastSync',
+      teamMembers: 'id, team_id, staff_id, joined_at, _lastSync',
+      tasks: 'id, title, assignee_id, team_id, status, priority, due_date, created_at, updated_at, _lastSync',
+      taskAssignments: 'id, task_id, staff_id, assigned_at, _lastSync, [task_id+staff_id]',
+      syncQueue: 'id, table, operation, timestamp, retries'
+    });
+
     // Add hooks for automatic sync queue management
     this.staff.hook('creating', (primKey, obj) => {
       obj._isOffline = true;

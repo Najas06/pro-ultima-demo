@@ -98,10 +98,14 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
   const teamMembersList = selectedTeamData?.members?.map(member => member.staff).filter((staff): staff is Staff => !!staff) || [];
   const loadingTeamMembers = false; // No loading state needed for offline data
 
-  // Reset team members when team changes
+  // Auto-select ALL team members when team changes
   useEffect(() => {
-    setSelectedTeamMembers([]);
-  }, [selectedTeam]);
+    if (selectedTeam && teamMembersList.length > 0) {
+      setSelectedTeamMembers(teamMembersList.map(m => m.id));
+    } else {
+      setSelectedTeamMembers([]);
+    }
+  }, [selectedTeam, teamMembersList.length]);
 
   // ============================================
   // HANDLERS
@@ -548,66 +552,6 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
               </div>
             </div>
 
-            {/* Team Member Selection (only for team mode) */}
-            {allocationMode === 'team' && (
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Team Members</Label>
-                <div className="flex flex-col space-y-2">
-                  <div className="text-sm border rounded-md p-2 h-10 flex items-center justify-between">
-                    <span className="text-muted-foreground">
-                      {selectedTeamMembers.length > 0
-                        ? `${selectedTeamMembers.length} selected`
-                        : "Select team first"
-                      }
-                    </span>
-                    {teamMembersList.length > 0 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleSelectAll}
-                        className="h-6 text-xs"
-                      >
-                        {selectedTeamMembers.length === teamMembersList.length ? "Deselect All" : "Select All"}
-                      </Button>
-                    )}
-                  </div>
-
-                  {loadingTeamMembers && (
-                    <div className="text-xs text-muted-foreground">Loading staff...</div>
-                  )}
-
-                    {teamMembersList.length > 0 && (
-                    <div className="max-h-32 overflow-y-auto border rounded-md p-2 space-y-1">
-                      {teamMembersList.map((member) => (
-                        <div key={member.id} className="flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            id={`member-${member.id}`}
-                            checked={selectedTeamMembers.includes(member.id)}
-                            onChange={() => handleMemberSelection(member.id)}
-                            className="h-3 w-3 rounded border-gray-300"
-                          />
-                          <Label
-                            htmlFor={`member-${member.id}`}
-                            className="text-xs font-normal cursor-pointer flex-1 truncate"
-                            title={`${member.name} (${member.role})`}
-                          >
-                            {member.name}
-                          </Label>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {selectedTeam && teamMembersList.length === 0 && !loadingTeamMembers && (
-                    <div className="text-xs text-muted-foreground p-2 border rounded-md">
-                      No staff members in this team
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Selection Summary */}
@@ -622,9 +566,9 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
             </div>
           )}
 
-          {allocationMode === 'team' && selectedTeamMembers.length > 0 && (
+          {allocationMode === 'team' && selectedTeam && (
             <div className="text-sm text-green-600 bg-green-50 dark:bg-green-950/20 p-2 rounded-md">
-              {selectedTeamMembers.length} staff member{selectedTeamMembers.length !== 1 ? 's' : ''} selected for task assignment
+              Task will be assigned to team: {selectedTeamData?.name}
               {isRepeatedTask && ` (repeated ${repeatFrequency}`}
               {isRepeatedTask && repeatFrequency === 'custom' && customDays.length > 0 && 
                 ` on ${customDays.map(day => getDayName(day)).join(', ')}`}
@@ -682,14 +626,14 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
             <Button
               type="submit"
               className="flex-1 w-full"
-              disabled={isCreating || (allocationMode === 'individual' ? !selectedIndividualStaff : selectedTeamMembers.length === 0)}
+              disabled={isCreating || (allocationMode === 'individual' ? !selectedIndividualStaff : !selectedTeam)}
             >
               {isCreating ? "Creating Task..." :
                 isRepeatedTask
-                  ? `Create Repeated Task${allocationMode === 'team' && selectedTeamMembers.length > 0 ? ` for ${selectedTeamMembers.length} Staff` : ''}`
+                  ? `Create Repeated Task`
                   : allocationMode === 'individual'
                     ? "Assign to Individual Staff"
-                    : selectedTeamMembers.length > 0 ? `Allocate to ${selectedTeamMembers.length} Staff` : 'Create Task'
+                    : 'Assign to Team'
               }
             </Button>
           </div>

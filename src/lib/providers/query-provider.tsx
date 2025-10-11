@@ -10,9 +10,9 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            // With SSR, we usually want to set some default staleTime
-            // above 0 to avoid refetching immediately on the client
-            staleTime: 60 * 1000, // 1 minute
+            // Set staleTime to 0 for real-time updates to work properly
+            // This ensures data is always considered stale and will refetch
+            staleTime: 0, // Always consider data stale for real-time sync
             gcTime: 10 * 60 * 1000, // 10 minutes
             refetchOnWindowFocus: false,
             retry: (failureCount, error) => {

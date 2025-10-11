@@ -101,6 +101,13 @@ export function EditTaskDialog({
   const selectedTeamData = teams.find(t => t.id === formData.team_id);
   const teamMembersList = selectedTeamData?.members?.map(member => member.staff).filter((staff): staff is Staff => !!staff) || [];
 
+  // Auto-select ALL team members when team changes
+  useEffect(() => {
+    if (formData.team_id && teamMembersList.length > 0) {
+      setFormData(prev => ({ ...prev, member_ids: teamMembersList.map(m => m.id) }));
+    }
+  }, [formData.team_id, teamMembersList.length]);
+
   // Load task data when dialog opens
   useEffect(() => {
     if (task && isOpen) {
@@ -112,7 +119,7 @@ export function EditTaskDialog({
         allocation_mode: task.allocation_mode,
         assignee_id: task.assignee_id || "",
         team_id: task.team_id || "",
-        member_ids: task.assigned_staff?.map(a => a.staff_id) || [],
+        member_ids: task.team_id && selectedTeamData ? teamMembersList.map(m => m.id) : [],
         due_date: task.due_date ? new Date(task.due_date) : undefined,
         is_repeated: task.is_repeated,
       });
@@ -149,7 +156,7 @@ export function EditTaskDialog({
       end_time: hasSpecificTime ? endTime : undefined,
     } : undefined;
 
-    await     updateTask({
+    await updateTask({
       id: task.id,
       title: formData.title,
       description: formData.description,
@@ -158,6 +165,9 @@ export function EditTaskDialog({
       due_date: formData.due_date?.toISOString(),
       is_repeated: formData.is_repeated,
       repeat_config: repeatConfig ? (repeatConfig as unknown as Record<string, unknown>) : undefined,
+      assignee_id: formData.allocation_mode === 'individual' ? formData.assignee_id : undefined,
+      team_id: formData.allocation_mode === 'team' ? formData.team_id : undefined,
+      assigned_staff_ids: formData.allocation_mode === 'team' ? formData.member_ids : undefined,
     });
 
     onOpenChange(false);
@@ -318,37 +328,6 @@ export function EditTaskDialog({
                   </Select>
                 </div>
 
-                {formData.team_id && teamMembersList.length > 0 && (
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">
-                      Team Members ({formData.member_ids.length} selected)
-                    </Label>
-                    <div className="max-h-48 space-y-2 overflow-y-auto rounded-lg border p-3">
-                      {teamMembersList.map((member) => (
-                        <div key={member.id} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={member.id}
-                            checked={formData.member_ids.includes(member.id)}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                handleInputChange("member_ids", [...formData.member_ids, member.id]);
-                              } else {
-                                handleInputChange("member_ids", formData.member_ids.filter(id => id !== member.id));
-                              }
-                            }}
-                          />
-                          <label
-                            htmlFor={member.id}
-                            className="flex-1 cursor-pointer text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                          >
-                            {member.name}
-                            <span className="ml-2 text-xs text-muted-foreground">{member.role}</span>
-                          </label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </>
             )}
 

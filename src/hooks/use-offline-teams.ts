@@ -182,7 +182,7 @@ export function useOfflineTeams() {
           await syncService.triggerCrossBrowserSync();
           
           // Invalidate and refetch to update UI
-          await queryClient.refetchQueries({ queryKey: ["offline-teams"] });
+          queryClient.invalidateQueries({ queryKey: ["offline-teams"] });
           
           // Dispatch custom event for real-time updates
           window.dispatchEvent(new CustomEvent('dataUpdated'));
@@ -249,7 +249,7 @@ export function useOfflineTeams() {
           await syncService.triggerCrossBrowserSync();
 
           // Invalidate and refetch
-          await queryClient.refetchQueries({ queryKey: ["offline-teams"] });
+          queryClient.invalidateQueries({ queryKey: ["offline-teams"] });
           
           // Dispatch custom event for real-time updates
           window.dispatchEvent(new CustomEvent('dataUpdated'));
@@ -377,7 +377,7 @@ export function useOfflineTeams() {
           await syncService.triggerCrossBrowserSync();
           
           // Invalidate and refetch to update UI
-          await queryClient.refetchQueries({ queryKey: ["offline-teams"] });
+          queryClient.invalidateQueries({ queryKey: ["offline-teams"] });
           
           // Dispatch custom event for real-time updates
           window.dispatchEvent(new CustomEvent('dataUpdated'));
@@ -434,7 +434,7 @@ export function useOfflineTeams() {
           await syncService.triggerCrossBrowserSync();
 
           // Invalidate and refetch
-          await queryClient.refetchQueries({ queryKey: ["offline-teams"] });
+          queryClient.invalidateQueries({ queryKey: ["offline-teams"] });
           
           // Dispatch custom event for real-time updates
           window.dispatchEvent(new CustomEvent('dataUpdated'));
@@ -507,7 +507,7 @@ export function useOfflineTeams() {
           await syncService.triggerCrossBrowserSync();
           
           // Invalidate and refetch to update UI
-          await queryClient.refetchQueries({ queryKey: ["offline-teams"] });
+          queryClient.invalidateQueries({ queryKey: ["offline-teams"] });
           
           // Dispatch custom event for real-time updates
           window.dispatchEvent(new CustomEvent('dataUpdated'));
@@ -530,7 +530,7 @@ export function useOfflineTeams() {
           await syncService.triggerCrossBrowserSync();
 
           // Invalidate and refetch
-          await queryClient.refetchQueries({ queryKey: ["offline-teams"] });
+          queryClient.invalidateQueries({ queryKey: ["offline-teams"] });
           
           // Dispatch custom event for real-time updates
           window.dispatchEvent(new CustomEvent('dataUpdated'));
