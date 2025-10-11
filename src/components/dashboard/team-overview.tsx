@@ -139,7 +139,7 @@ export function TeamOverview({ teams, tasks, limit = 3 }: TeamOverviewProps) {
                     {team.members && team.members.length > 1 && (
                       <div className="flex -space-x-1">
                         {team.members.slice(0, 3).map((member, index) => (
-                          <Avatar key={member.id} className="h-6 w-6 border-2 border-white">
+                          <Avatar key={member.id || index} className="h-6 w-6 border-2 border-white">
                             <AvatarFallback className="text-xs">
                               {getInitials(member.staff?.name || "U")}
                             </AvatarFallback>

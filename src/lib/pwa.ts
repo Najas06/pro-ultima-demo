@@ -47,14 +47,14 @@ export function unregisterServiceWorker() {
 
 // Install prompt for PWA
 export function setupInstallPrompt() {
-  let deferredPrompt: BeforeInstallPromptEvent | undefined = undefined;
+  // let deferredPrompt: BeforeInstallPromptEvent | undefined = undefined;
 
   window.addEventListener('beforeinstallprompt', (e) => {
     // Prevent the mini-infobar from appearing on mobile
     e.preventDefault();
     // Stash the event so it can be triggered later
     const promptEvent = e as BeforeInstallPromptEvent;
-    deferredPrompt = promptEvent;
+    // deferredPrompt = promptEvent;
     
     // Show install button or banner
     showInstallPrompt(promptEvent);

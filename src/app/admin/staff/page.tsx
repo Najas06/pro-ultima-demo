@@ -8,6 +8,8 @@ import {
 } from "@/components/ui/sidebar"
 import { EmployeeFormOptimized } from "@/components/staff/employee-form-optimized"
 
+export const dynamic = 'force-dynamic';
+
 export default function StaffPage() {
   return (
     <SidebarProvider

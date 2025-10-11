@@ -43,6 +43,7 @@ const transformOfflineTask = (task: OfflineTask) => ({
 
 export function useOfflineTasks() {
   const queryClient = useQueryClient();
+  const supabase = createClient();
   const [syncStatus, setSyncStatus] = useState(() => {
     // Only access syncService on client-side
     if (typeof window === 'undefined') return { isOnline: false, isSyncing: false, lastSync: null, pendingOperations: 0 };
@@ -144,31 +145,118 @@ export function useOfflineTasks() {
   >({
     mutationFn: async (newTask) => {
       try {
-        // Generate offline ID
-        const offlineId = `offline_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        
-        const taskData: OfflineTask = {
-          id: offlineId,
-          title: newTask.title,
-          description: newTask.description,
-          assignee_id: newTask.assignee_id,
-          team_id: newTask.team_id,
-          status: newTask.status,
-          priority: newTask.priority,
-          due_date: newTask.due_date,
-          start_date: newTask.start_date,
-          allocation_mode: newTask.allocation_mode,
-          is_repeated: newTask.is_repeated,
-          repeat_config: newTask.repeat_config ? JSON.stringify(newTask.repeat_config) : undefined,
-          support_files: newTask.support_files,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          _isOffline: true,
-          _lastSync: Date.now(),
-        };
+        if (syncStatus.isOnline) {
+          // ONLINE: Create directly in Supabase first
+          console.log('Online mode: Creating task in Supabase...');
+          
+          const { data: supabaseData, error: supabaseError } = await supabase
+            .from('tasks')
+            .insert({
+              title: newTask.title,
+              description: newTask.description,
+              allocation_mode: newTask.allocation_mode,
+              assignee_id: newTask.assignee_id,
+              team_id: newTask.team_id,
+              status: newTask.status,
+              priority: newTask.priority,
+              due_date: newTask.due_date,
+              start_date: newTask.start_date,
+              is_repeated: newTask.is_repeated,
+              repeat_config: newTask.repeat_config ? JSON.stringify(newTask.repeat_config) : undefined,
+              support_files: newTask.support_files,
+            })
+            .select()
+            .single();
 
-        // Add task to offline database
-        await offlineDB.tasks.add(taskData);
+          if (supabaseError) {
+            console.error('Supabase create failed:', supabaseError);
+            throw supabaseError;
+          }
+
+          console.log('Task created successfully in Supabase:', supabaseData);
+          
+          // Also add to IndexedDB for immediate UI update
+          const taskData: OfflineTask = {
+            id: supabaseData.id,
+            title: supabaseData.title,
+            description: supabaseData.description,
+            assignee_id: supabaseData.assignee_id,
+            team_id: supabaseData.team_id,
+            status: supabaseData.status,
+            priority: supabaseData.priority,
+            due_date: supabaseData.due_date,
+            start_date: supabaseData.start_date,
+            allocation_mode: supabaseData.allocation_mode,
+            is_repeated: supabaseData.is_repeated,
+            repeat_config: supabaseData.repeat_config,
+            support_files: supabaseData.support_files,
+            created_at: supabaseData.created_at,
+            updated_at: supabaseData.updated_at,
+            _isOffline: false,
+            _lastSync: Date.now(),
+          };
+          
+          await offlineDB.tasks.put(taskData);
+          console.log('Task also added to IndexedDB for UI update');
+          
+          // Add task assignments if provided
+          if (newTask.assigned_staff_ids && newTask.assigned_staff_ids.length > 0) {
+            for (const staffId of newTask.assigned_staff_ids) {
+              const assignmentData: OfflineTaskAssignment = {
+                id: `assignment_${supabaseData.id}_${staffId}`,
+                task_id: supabaseData.id,
+                staff_id: staffId,
+                assigned_at: new Date().toISOString(),
+                _isOffline: false,
+                _lastSync: Date.now(),
+              };
+              
+              await offlineDB.taskAssignments.put(assignmentData);
+            }
+          }
+
+          // Save to localStorage for cross-browser sync
+          await syncService.triggerCrossBrowserSync();
+          
+          // Invalidate and refetch to update UI
+          await queryClient.refetchQueries({ queryKey: ["offline-tasks"] });
+          
+          // Dispatch custom event for real-time updates
+          window.dispatchEvent(new CustomEvent('dataUpdated'));
+
+          return { 
+            success: true, 
+            data: taskData
+          };
+        } else {
+          // OFFLINE: Local storage only
+          console.log('Offline mode: Storing task locally...');
+          
+          // Generate offline ID
+          const offlineId = `offline_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          
+          const taskData: OfflineTask = {
+            id: offlineId,
+            title: newTask.title,
+            description: newTask.description,
+            assignee_id: newTask.assignee_id,
+            team_id: newTask.team_id,
+            status: newTask.status,
+            priority: newTask.priority,
+            due_date: newTask.due_date,
+            start_date: newTask.start_date,
+            allocation_mode: newTask.allocation_mode,
+            is_repeated: newTask.is_repeated,
+            repeat_config: newTask.repeat_config ? JSON.stringify(newTask.repeat_config) : undefined,
+            support_files: newTask.support_files,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            _isOffline: true,
+            _lastSync: Date.now(),
+          };
+
+          // Add task to offline database
+          await offlineDB.tasks.add(taskData);
 
         // Add task assignments if provided
         if (newTask.assigned_staff_ids && newTask.assigned_staff_ids.length > 0) {
@@ -213,16 +301,17 @@ export function useOfflineTasks() {
           }
         }
 
-        // Invalidate and refetch
-        await queryClient.refetchQueries({ queryKey: ["offline-tasks"] });
+          // Cross-browser sync for offline data
+          await syncService.triggerCrossBrowserSync();
 
-        // Trigger cross-browser sync
-        syncService.triggerCrossBrowserSync();
+          // Invalidate and refetch
+          await queryClient.refetchQueries({ queryKey: ["offline-tasks"] });
+          
+          // Dispatch custom event for real-time updates
+          window.dispatchEvent(new CustomEvent('dataUpdated'));
 
-        // Dispatch custom event for real-time updates
-        window.dispatchEvent(new CustomEvent('dataUpdated'));
-
-        return { success: true, data: taskData };
+          return { success: true, data: taskData };
+        }
       } catch (error) {
         console.error("Error creating task:", error);
         return { 
@@ -344,10 +433,13 @@ export function useOfflineTasks() {
         await syncService.queueOperation('tasks', 'delete', { id: taskId });
 
         // Invalidate and refetch
-        queryClient.invalidateQueries({ queryKey: ["offline-tasks"] });
+        await queryClient.refetchQueries({ queryKey: ["offline-tasks"] });
 
         // Trigger cross-browser sync
         syncService.triggerCrossBrowserSync();
+        
+        // Dispatch custom event for real-time updates
+        window.dispatchEvent(new CustomEvent('dataUpdated'));
 
         return { success: true };
       } catch (error) {

@@ -25,9 +25,6 @@ import {
   User, 
   Upload, 
   Camera, 
-  Mail, 
-  Phone, 
-  Edit, 
   Save, 
   X, 
   Trash2,
@@ -67,11 +64,8 @@ export function EmployeeFormOptimized() {
     isCreating,
     isUpdating,
     isDeleting,
-    syncStatus,
-    isOnline,
-    pendingOperations,
-    downloadData,
-    syncAll,
+    
+    isOnline
   } = useOfflineStaff();
 
   // Transform offline staff to match expected interface

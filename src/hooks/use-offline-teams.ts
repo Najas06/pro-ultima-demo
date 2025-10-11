@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { offlineDB, OfflineTeam, OfflineTeamMember } from "@/lib/offline/database";
 import { syncService } from "@/lib/offline/sync-service";
+import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
 
@@ -106,63 +107,155 @@ export function useOfflineTeams() {
   >({
     mutationFn: async (newTeam) => {
       try {
-        // Generate offline ID
-        const offlineId = `offline_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        
-        const teamData: OfflineTeam = {
-          id: offlineId,
-          name: newTeam.name,
-          description: newTeam.description,
-          leader_id: newTeam.leader_id,
-          branch: newTeam.branch,
-          members: [],
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          _isOffline: true,
-          _lastSync: Date.now(),
-        };
+        if (syncStatus.isOnline) {
+          // ONLINE: Create directly in Supabase first
+          console.log('Online mode: Creating team in Supabase...');
+          const supabase = createClient();
+          
+          const { data: supabaseData, error: supabaseError } = await supabase
+            .from('teams')
+            .insert({
+              name: newTeam.name,
+              description: newTeam.description,
+              leader_id: newTeam.leader_id,
+              branch: newTeam.branch,
+            })
+            .select()
+            .single();
 
-        // Add team to offline database
-        await offlineDB.teams.add(teamData);
+          if (supabaseError) {
+            console.error('Supabase create failed:', supabaseError);
+            throw supabaseError;
+          }
 
-        // Add team members
-        for (const memberId of newTeam.member_ids) {
-          const memberData: OfflineTeamMember = {
-            id: `offline_member_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            team_id: offlineId,
-            staff_id: memberId,
-            joined_at: new Date().toISOString(),
-            _isOffline: true,
+          console.log('Team created successfully in Supabase:', supabaseData);
+          
+          // Also add to IndexedDB for immediate UI update
+          const teamData: OfflineTeam = {
+            id: supabaseData.id,
+            name: supabaseData.name,
+            description: supabaseData.description,
+            leader_id: supabaseData.leader_id,
+            branch: supabaseData.branch,
+            members: [],
+            created_at: supabaseData.created_at,
+            updated_at: supabaseData.updated_at,
+            _isOffline: false,
             _lastSync: Date.now(),
           };
           
-          await offlineDB.teamMembers.add(memberData);
-        }
+          await offlineDB.teams.put(teamData);
+          console.log('Team also added to IndexedDB for UI update');
+          
+          // Add team members to Supabase
+          if (newTeam.member_ids && newTeam.member_ids.length > 0) {
+            const membersToInsert = newTeam.member_ids.map(memberId => ({
+              team_id: supabaseData.id,
+              staff_id: memberId,
+              joined_at: new Date().toISOString(),
+            }));
+            
+            const { error: membersError } = await supabase
+              .from('team_members')
+              .insert(membersToInsert);
+            
+            if (membersError) {
+              console.error('Failed to add team members:', membersError);
+            } else {
+              // Add members to IndexedDB too
+              for (const memberId of newTeam.member_ids) {
+                const memberData: OfflineTeamMember = {
+                  id: `member_${supabaseData.id}_${memberId}`,
+                  team_id: supabaseData.id,
+                  staff_id: memberId,
+                  joined_at: new Date().toISOString(),
+                  _isOffline: false,
+                  _lastSync: Date.now(),
+                };
+                
+                await offlineDB.teamMembers.put(memberData);
+              }
+            }
+          }
 
-        // Queue for sync
-        await syncService.queueOperation('teams', 'create', {
-          name: newTeam.name,
-          description: newTeam.description,
-          leader_id: newTeam.leader_id,
-          branch: newTeam.branch,
-        });
+          // Save to localStorage for cross-browser sync
+          await syncService.triggerCrossBrowserSync();
+          
+          // Invalidate and refetch to update UI
+          await queryClient.refetchQueries({ queryKey: ["offline-teams"] });
+          
+          // Dispatch custom event for real-time updates
+          window.dispatchEvent(new CustomEvent('dataUpdated'));
 
-        // Queue team members for sync
-        for (const memberId of newTeam.member_ids) {
-          await syncService.queueOperation('team_members', 'create', {
-            team_id: offlineId,
-            staff_id: memberId,
-            joined_at: new Date().toISOString(),
+          return { 
+            success: true, 
+            data: teamData
+          };
+        } else {
+          // OFFLINE: Local storage only
+          console.log('Offline mode: Storing team locally...');
+          
+          // Generate offline ID
+          const offlineId = `offline_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          
+          const teamData: OfflineTeam = {
+            id: offlineId,
+            name: newTeam.name,
+            description: newTeam.description,
+            leader_id: newTeam.leader_id,
+            branch: newTeam.branch,
+            members: [],
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            _isOffline: true,
+            _lastSync: Date.now(),
+          };
+
+          // Add team to offline database
+          await offlineDB.teams.add(teamData);
+
+          // Add team members
+          for (const memberId of newTeam.member_ids) {
+            const memberData: OfflineTeamMember = {
+              id: `offline_member_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              team_id: offlineId,
+              staff_id: memberId,
+              joined_at: new Date().toISOString(),
+              _isOffline: true,
+              _lastSync: Date.now(),
+            };
+            
+            await offlineDB.teamMembers.add(memberData);
+          }
+
+          // Queue for sync
+          await syncService.queueOperation('teams', 'create', {
+            name: newTeam.name,
+            description: newTeam.description,
+            leader_id: newTeam.leader_id,
+            branch: newTeam.branch,
           });
+
+          // Queue team members for sync
+          for (const memberId of newTeam.member_ids) {
+            await syncService.queueOperation('team_members', 'create', {
+              team_id: offlineId,
+              staff_id: memberId,
+              joined_at: new Date().toISOString(),
+            });
+          }
+
+          // Cross-browser sync for offline data
+          await syncService.triggerCrossBrowserSync();
+
+          // Invalidate and refetch
+          await queryClient.refetchQueries({ queryKey: ["offline-teams"] });
+          
+          // Dispatch custom event for real-time updates
+          window.dispatchEvent(new CustomEvent('dataUpdated'));
+
+          return { success: true, data: teamData };
         }
-
-        // Invalidate and refetch
-        queryClient.invalidateQueries({ queryKey: ["offline-teams"] });
-
-        // Trigger cross-browser sync
-        syncService.triggerCrossBrowserSync();
-
-        return { success: true, data: teamData };
       } catch (error) {
         console.error("Error creating team:", error);
         return { 
@@ -203,53 +296,151 @@ export function useOfflineTeams() {
           throw new Error("Team not found");
         }
 
-        const updatedTeam: Partial<OfflineTeam> = {
-          name: updateData.name,
-          description: updateData.description,
-          leader_id: updateData.leader_id,
-          branch: updateData.branch,
-          updated_at: new Date().toISOString(),
-          _isOffline: true,
-          _lastSync: Date.now(),
-        };
+        if (syncStatus.isOnline && !existingTeam._isOffline) {
+          // ONLINE: Update directly in Supabase
+          console.log('Online mode: Updating team in Supabase...');
+          const supabase = createClient();
+          
+          const { data: supabaseData, error: supabaseError } = await supabase
+            .from('teams')
+            .update({
+              name: updateData.name,
+              description: updateData.description,
+              leader_id: updateData.leader_id,
+              branch: updateData.branch,
+            })
+            .eq('id', updateData.id)
+            .select()
+            .single();
 
-        // Update team in offline database
-        await offlineDB.teams.update(updateData.id, updatedTeam);
+          if (supabaseError) {
+            console.error('Supabase update failed:', supabaseError);
+            throw supabaseError;
+          }
 
-        // Update team members
-        // Remove existing members
-        await offlineDB.teamMembers.where('team_id').equals(updateData.id).delete();
-        
-        // Add new members
-        for (const memberId of updateData.member_ids) {
-          const memberData: OfflineTeamMember = {
-            id: `offline_member_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            team_id: updateData.id,
-            staff_id: memberId,
-            joined_at: new Date().toISOString(),
-            _isOffline: true,
+          console.log('Team updated successfully in Supabase:', supabaseData);
+          
+          // Also update in IndexedDB for immediate UI update
+          const teamData: OfflineTeam = {
+            id: supabaseData.id,
+            name: supabaseData.name,
+            description: supabaseData.description,
+            leader_id: supabaseData.leader_id,
+            branch: supabaseData.branch,
+            members: [],
+            created_at: supabaseData.created_at,
+            updated_at: supabaseData.updated_at,
+            _isOffline: false,
             _lastSync: Date.now(),
           };
           
-          await offlineDB.teamMembers.add(memberData);
+          await offlineDB.teams.put(teamData);
+          console.log('Team also updated in IndexedDB for UI update');
+          
+          // Update team members in Supabase
+          // Remove existing members
+          await supabase
+            .from('team_members')
+            .delete()
+            .eq('team_id', updateData.id);
+          
+          // Add new members
+          if (updateData.member_ids && updateData.member_ids.length > 0) {
+            const membersToInsert = updateData.member_ids.map(memberId => ({
+              team_id: updateData.id,
+              staff_id: memberId,
+              joined_at: new Date().toISOString(),
+            }));
+            
+            await supabase
+              .from('team_members')
+              .insert(membersToInsert);
+            
+            // Update members in IndexedDB too
+            await offlineDB.teamMembers.where('team_id').equals(updateData.id).delete();
+            
+            for (const memberId of updateData.member_ids) {
+              const memberData: OfflineTeamMember = {
+                id: `member_${updateData.id}_${memberId}`,
+                team_id: updateData.id,
+                staff_id: memberId,
+                joined_at: new Date().toISOString(),
+                _isOffline: false,
+                _lastSync: Date.now(),
+              };
+              
+              await offlineDB.teamMembers.put(memberData);
+            }
+          }
+
+          // Save to localStorage for cross-browser sync
+          await syncService.triggerCrossBrowserSync();
+          
+          // Invalidate and refetch to update UI
+          await queryClient.refetchQueries({ queryKey: ["offline-teams"] });
+          
+          // Dispatch custom event for real-time updates
+          window.dispatchEvent(new CustomEvent('dataUpdated'));
+
+          return { 
+            success: true, 
+            data: teamData
+          };
+        } else {
+          // OFFLINE: Update locally only
+          console.log('Offline mode: Updating team locally...');
+          
+          const updatedTeam: Partial<OfflineTeam> = {
+            name: updateData.name,
+            description: updateData.description,
+            leader_id: updateData.leader_id,
+            branch: updateData.branch,
+            updated_at: new Date().toISOString(),
+            _isOffline: true,
+            _lastSync: Date.now(),
+          };
+
+          // Update team in offline database
+          await offlineDB.teams.update(updateData.id, updatedTeam);
+
+          // Update team members
+          // Remove existing members
+          await offlineDB.teamMembers.where('team_id').equals(updateData.id).delete();
+          
+          // Add new members
+          for (const memberId of updateData.member_ids) {
+            const memberData: OfflineTeamMember = {
+              id: `offline_member_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              team_id: updateData.id,
+              staff_id: memberId,
+              joined_at: new Date().toISOString(),
+              _isOffline: true,
+              _lastSync: Date.now(),
+            };
+            
+            await offlineDB.teamMembers.add(memberData);
+          }
+
+          // Queue for sync
+          await syncService.queueOperation('teams', 'update', {
+            id: updateData.id,
+            name: updateData.name,
+            description: updateData.description,
+            leader_id: updateData.leader_id,
+            branch: updateData.branch,
+          });
+
+          // Cross-browser sync for offline data
+          await syncService.triggerCrossBrowserSync();
+
+          // Invalidate and refetch
+          await queryClient.refetchQueries({ queryKey: ["offline-teams"] });
+          
+          // Dispatch custom event for real-time updates
+          window.dispatchEvent(new CustomEvent('dataUpdated'));
+
+          return { success: true, data: { ...existingTeam, ...updatedTeam } };
         }
-
-        // Queue for sync
-        await syncService.queueOperation('teams', 'update', {
-          id: updateData.id,
-          name: updateData.name,
-          description: updateData.description,
-          leader_id: updateData.leader_id,
-          branch: updateData.branch,
-        });
-
-        // Invalidate and refetch
-        queryClient.invalidateQueries({ queryKey: ["offline-teams"] });
-
-        // Trigger cross-browser sync
-        syncService.triggerCrossBrowserSync();
-
-        return { success: true, data: { ...existingTeam, ...updatedTeam } };
       } catch (error) {
         console.error("Error updating team:", error);
         return { 
@@ -278,22 +469,74 @@ export function useOfflineTeams() {
   >({
     mutationFn: async (teamId) => {
       try {
-        // Delete team members first
-        await offlineDB.teamMembers.where('team_id').equals(teamId).delete();
-        
-        // Delete team
-        await offlineDB.teams.delete(teamId);
+        const existingTeam = await offlineDB.teams.get(teamId);
+        if (!existingTeam) {
+          throw new Error("Team not found");
+        }
 
-        // Queue for sync
-        await syncService.queueOperation('teams', 'delete', { id: teamId });
+        if (syncStatus.isOnline && !existingTeam._isOffline) {
+          // ONLINE: Delete directly from Supabase
+          console.log('Online mode: Deleting team from Supabase...');
+          const supabase = createClient();
+          
+          // Delete team members first
+          await supabase
+            .from('team_members')
+            .delete()
+            .eq('team_id', teamId);
+          
+          // Delete team
+          const { error: supabaseError } = await supabase
+            .from('teams')
+            .delete()
+            .eq('id', teamId);
 
-        // Invalidate and refetch
-        queryClient.invalidateQueries({ queryKey: ["offline-teams"] });
+          if (supabaseError) {
+            console.error('Supabase delete failed:', supabaseError);
+            throw supabaseError;
+          }
 
-        // Trigger cross-browser sync
-        syncService.triggerCrossBrowserSync();
+          console.log('Team deleted successfully from Supabase');
+          
+          // Also delete from IndexedDB for immediate UI update
+          await offlineDB.teamMembers.where('team_id').equals(teamId).delete();
+          await offlineDB.teams.delete(teamId);
+          console.log('Team also deleted from IndexedDB for UI update');
+          
+          // Save to localStorage for cross-browser sync
+          await syncService.triggerCrossBrowserSync();
+          
+          // Invalidate and refetch to update UI
+          await queryClient.refetchQueries({ queryKey: ["offline-teams"] });
+          
+          // Dispatch custom event for real-time updates
+          window.dispatchEvent(new CustomEvent('dataUpdated'));
 
-        return { success: true };
+          return { success: true };
+        } else {
+          // OFFLINE: Delete locally only
+          console.log('Offline mode: Deleting team locally...');
+          
+          // Delete team members first
+          await offlineDB.teamMembers.where('team_id').equals(teamId).delete();
+          
+          // Delete team
+          await offlineDB.teams.delete(teamId);
+
+          // Queue for sync
+          await syncService.queueOperation('teams', 'delete', { id: teamId });
+
+          // Cross-browser sync for offline data
+          await syncService.triggerCrossBrowserSync();
+
+          // Invalidate and refetch
+          await queryClient.refetchQueries({ queryKey: ["offline-teams"] });
+          
+          // Dispatch custom event for real-time updates
+          window.dispatchEvent(new CustomEvent('dataUpdated'));
+
+          return { success: true };
+        }
       } catch (error) {
         console.error("Error deleting team:", error);
         return { 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useId, useState } from "react"
+import { useId } from "react"
 import { CheckIcon, ImagePlusIcon, XIcon } from "lucide-react"
 
 import { useCharacterLimit } from "@/hooks/use-character-limit"
@@ -19,6 +19,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import Image from "next/image"
 
 // Pretend we have initial image files
 const initialBgImage = [
@@ -184,7 +185,7 @@ function ProfileBg() {
     <div className="h-32">
       <div className="bg-muted relative flex size-full items-center justify-center overflow-hidden">
         {currentImage && (
-          <img
+          <Image
             className="size-full object-cover"
             src={currentImage}
             alt={
@@ -238,7 +239,7 @@ function Avatar() {
     <div className="-mt-10 px-6">
       <div className="border-background bg-muted relative flex size-20 items-center justify-center overflow-hidden rounded-full border-4 shadow-xs shadow-black/10">
         {currentImage && (
-          <img
+          <Image
             src={currentImage}
             className="size-full object-cover"
             width={80}
