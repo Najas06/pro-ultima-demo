@@ -3,8 +3,8 @@ export interface Task {
   id: string;
   title: string;
   description?: string;
-  assignee_id?: string;
-  assignee?: Staff;
+  assigned_staff_ids: string[]; // Array of staff IDs
+  assigned_team_ids: string[]; // Array of team IDs
   status: TaskStatus;
   priority: TaskPriority;
   due_date?: string;
@@ -12,9 +12,8 @@ export interface Task {
   created_at: string;
   updated_at: string;
   allocation_mode: 'individual' | 'team';
-  team_id?: string;
-  team?: Team;
-  assigned_staff?: TaskAssignment[];
+  assigned_staff?: TaskAssignment[]; // Populated staff details
+  assigned_teams?: Team[]; // Populated team details
   is_repeated: boolean;
   repeat_config?: TaskRepeatConfig;
   support_files?: string[];
@@ -128,9 +127,8 @@ export interface TaskFormData {
   title: string;
   description?: string;
   allocation_mode: 'individual' | 'team';
-  assignee_id?: string; // For individual mode
-  team_id?: string; // For team mode
-  assigned_staff_ids?: string[]; // For team mode - selected team members
+  assigned_staff_ids: string[]; // Array of staff IDs
+  assigned_team_ids: string[]; // Array of team IDs
   status: TaskStatus;
   priority: TaskPriority;
   due_date?: string;

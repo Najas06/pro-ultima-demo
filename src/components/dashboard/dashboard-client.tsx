@@ -637,7 +637,12 @@ export function DashboardClient() {
                   <TableRow key={task.id}>
                     <TableCell className="font-medium">{task.title}</TableCell>
                     <TableCell>
-                      {task.assignee?.name || task.team?.name || "Unassigned"}
+                      {task.assigned_staff_ids?.length > 0 
+                        ? `${task.assigned_staff_ids.length} staff` 
+                        : task.assigned_team_ids?.length > 0 
+                        ? `${task.assigned_team_ids.length} teams`
+                        : "Unassigned"
+                      }
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className={getStatusColor(task.status)}>

@@ -12,8 +12,8 @@ const transformOfflineTask = (task: OfflineTask) => ({
   id: task.id,
   title: task.title,
   description: task.description,
-  assignee_id: task.assignee_id,
-  assignee: task.assignee,
+  assigned_staff_ids: task.assigned_staff_ids || [],
+  assigned_team_ids: task.assigned_team_ids || [],
   status: task.status,
   priority: task.priority,
   due_date: task.due_date,
@@ -21,9 +21,8 @@ const transformOfflineTask = (task: OfflineTask) => ({
   created_at: task.created_at,
   updated_at: task.updated_at,
   allocation_mode: task.allocation_mode,
-  team_id: task.team_id,
-  team: task.team,
   assigned_staff: task.assigned_staff,
+  assigned_teams: task.assigned_teams,
   is_repeated: task.is_repeated,
   repeat_config: task.repeat_config ? 
     (typeof task.repeat_config === 'string' ? 
@@ -70,6 +69,80 @@ export function useOfflineTasks() {
     return () => window.removeEventListener('dataUpdated', handleDataUpdate);
   }, [queryClient]);
 
+  // Simple refresh function for instant UI updates
+  const refreshPage = () => {
+    if (typeof window !== 'undefined') {
+      window.location.reload();
+    }
+  };
+
+  // Force sync function for manual confirmation
+  const forceSync = async () => {
+    try {
+      console.log('🚀 Force sync: Starting data synchronization...');
+      
+      // Force sync all data from Supabase
+      await syncService.syncAll();
+      
+      // Invalidate and refetch all queries
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['offline-tasks'] }),
+        queryClient.invalidateQueries({ queryKey: ['offline-staff'] }),
+        queryClient.invalidateQueries({ queryKey: ['offline-teams'] }),
+      ]);
+      
+      console.log('✅ Force sync completed successfully');
+      
+      // Trigger real-time update for other browser tabs
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('dataUpdated'));
+      }
+      
+    } catch (error) {
+      console.error('❌ Error in force sync:', error);
+      throw error;
+    }
+  };
+
+  // Clear IndexedDB and refresh page function
+  const clearIndexedDBAndRefresh = async () => {
+    try {
+      console.log('🔄 Clearing IndexedDB and refreshing page...');
+      
+      // Clear all IndexedDB data
+      await offlineDB.tasks.clear();
+      await offlineDB.taskAssignments.clear();
+      await offlineDB.staff.clear();
+      await offlineDB.teams.clear();
+      await offlineDB.teamMembers.clear();
+      
+      console.log('✅ IndexedDB cleared successfully');
+      
+      // Wait a moment to ensure clearing is complete
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Refresh the page
+      if (typeof window !== 'undefined') {
+        window.location.reload();
+      }
+      
+    } catch (error) {
+      console.error('❌ Error clearing IndexedDB:', error);
+      // Still refresh the page even if clearing fails
+      if (typeof window !== 'undefined') {
+        window.location.reload();
+      }
+    }
+  };
+
+  // State to track if we're on the client side
+  const [isClient, setIsClient] = useState(false);
+
+  // Set client state on mount
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
   // Query to fetch all tasks (offline-first)
   const {
     data: tasks,
@@ -78,72 +151,82 @@ export function useOfflineTasks() {
   } = useQuery<OfflineTask[], Error>({
     queryKey: ["offline-tasks"],
     queryFn: async () => {
-      if (typeof window === 'undefined') return [];
-      const tasksData = await offlineDB.tasks.orderBy('created_at').reverse().toArray();
+      try {
+        console.log('🔍 Query function called, window:', typeof window);
+        console.log('🔍 Client side, fetching tasks from IndexedDB');
+        console.log('🔍 offlineDB available:', !!offlineDB);
+        console.log('🔍 offlineDB.tasks available:', !!offlineDB.tasks);
+        const tasksData = await offlineDB.tasks.orderBy('created_at').reverse().toArray();
+        console.log('🔍 Tasks fetched from IndexedDB:', tasksData.length, tasksData);
       
       // Load related data for each task
       for (const task of tasksData) {
-        // Load assignee
-        if (task.assignee_id) {
-          const assignee = await offlineDB.staff.get(task.assignee_id);
-          if (assignee) {
-            task.assignee = assignee;
+        // Load assigned staff
+        if (task.assigned_staff_ids?.length > 0) {
+          const assignedStaff = [];
+          for (const staffId of task.assigned_staff_ids) {
+            const staff = await offlineDB.staff.get(staffId);
+            if (staff) {
+              // Create a task assignment object
+              const assignment = {
+                id: `assignment-${task.id}-${staffId}`,
+                task_id: task.id,
+                staff_id: staffId,
+                staff: staff,
+                assigned_at: new Date().toISOString(),
+                _isOffline: true,
+                _lastSync: Date.now(),
+              };
+              assignedStaff.push(assignment);
+            }
           }
+          task.assigned_staff = assignedStaff;
         }
 
-        // Load team and team members
-        if (task.team_id) {
-          const team = await offlineDB.teams.get(task.team_id);
-          if (team) {
-            // Load team leader
-            if (team.leader_id) {
-              const leader = await offlineDB.staff.get(team.leader_id);
-              if (leader) {
-                team.leader = leader;
+        // Load assigned teams
+        if (task.assigned_team_ids?.length > 0) {
+          const assignedTeams = [];
+          for (const teamId of task.assigned_team_ids) {
+            const team = await offlineDB.teams.get(teamId);
+            if (team) {
+              // Load team leader
+              if (team.leader_id) {
+                const leader = await offlineDB.staff.get(team.leader_id);
+                if (leader) {
+                  team.leader = leader;
+                }
               }
-            }
-            
-            // Load team members
-            const members = await offlineDB.teamMembers
-              .where('team_id')
-              .equals(team.id)
-              .toArray();
-            
-            // Load staff data for each member
-            for (const member of members) {
-              const staff = await offlineDB.staff.get(member.staff_id);
-              if (staff) {
-                member.staff = staff;
-              }
-            }
-            
-            team.members = members;
-            task.team = team;
-          }
-        }
 
-        // Load task assignments
-        const assignments = await offlineDB.taskAssignments
-          .where('task_id')
-          .equals(task.id)
-          .toArray();
-        
-        // Load staff data for each assignment
-        for (const assignment of assignments) {
-          const staff = await offlineDB.staff.get(assignment.staff_id);
-          if (staff) {
-            assignment.staff = staff;
+              // Load team members
+              const teamMembers = await offlineDB.teamMembers
+                .where('team_id')
+                .equals(teamId)
+                .toArray();
+
+              for (const member of teamMembers) {
+                const staff = await offlineDB.staff.get(member.staff_id);
+                if (staff) {
+                  member.staff = staff;
+                }
+              }
+
+              team.members = teamMembers;
+              assignedTeams.push(team);
+            }
           }
+          task.assigned_teams = assignedTeams;
         }
-        
-        task.assigned_staff = assignments;
       }
       
-      return tasksData;
+        console.log('🔍 Returning tasks data:', tasksData.length, tasksData);
+        return tasksData;
+      } catch (error) {
+        console.error('❌ Error in query function:', error);
+        return [];
+      }
     },
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    gcTime: 1000 * 60 * 10, // 10 minutes
-    enabled: typeof window !== 'undefined', // Only run on client-side
+    // Use default options from QueryProvider
+    enabled: isClient, // Only run on client-side
   });
 
   // Create task mutation
@@ -154,9 +237,8 @@ export function useOfflineTasks() {
       title: string;
       description?: string;
       allocation_mode: 'individual' | 'team';
-      assignee_id?: string;
-      team_id?: string;
       assigned_staff_ids?: string[];
+      assigned_team_ids?: string[];
       status: 'backlog' | 'todo' | 'in_progress' | 'completed';
       priority: 'low' | 'medium' | 'high' | 'urgent';
       due_date?: string;
@@ -178,8 +260,8 @@ export function useOfflineTasks() {
               title: newTask.title,
               description: newTask.description,
               allocation_mode: newTask.allocation_mode,
-              assignee_id: newTask.assignee_id,
-              team_id: newTask.team_id,
+              assigned_staff_ids: newTask.assigned_staff_ids || [],
+              assigned_team_ids: newTask.assigned_team_ids || [],
               status: newTask.status,
               priority: newTask.priority,
               due_date: newTask.due_date,
@@ -216,21 +298,6 @@ export function useOfflineTasks() {
             } else {
               console.log(`Created ${assignmentsToInsert.length} task assignments in Supabase`);
             }
-          } else if (newTask.assignee_id && newTask.allocation_mode === 'individual') {
-            // Individual task - single staff assignment to Supabase
-            const { error: assignmentError } = await supabase
-              .from('task_assignments')
-              .insert({
-                task_id: supabaseData.id,
-                staff_id: newTask.assignee_id,
-                assigned_at: new Date().toISOString(),
-              });
-            
-            if (assignmentError) {
-              console.error('Failed to create task assignment in Supabase:', assignmentError);
-            } else {
-              console.log('Created individual task assignment in Supabase');
-            }
           }
           
           // Manually update IndexedDB to ensure consistency (bypasses real-time sync issues)
@@ -264,30 +331,6 @@ export function useOfflineTasks() {
               }
             }
             console.log(`Created ${newTask.assigned_staff_ids.length} task assignments in IndexedDB`);
-          } else if (newTask.assignee_id && newTask.allocation_mode === 'individual') {
-            // Individual task - single staff assignment
-            // Check if assignment already exists to prevent duplicates
-            const existingAssignments = await offlineDB.taskAssignments
-              .where('task_id')
-              .equals(supabaseData.id)
-              .and(assignment => assignment.staff_id === newTask.assignee_id)
-              .toArray();
-            
-            if (existingAssignments.length === 0) {
-              const assignmentData: OfflineTaskAssignment = {
-                id: `assignment_${supabaseData.id}_${newTask.assignee_id}`,
-                task_id: supabaseData.id,
-                staff_id: newTask.assignee_id,
-                assigned_at: new Date().toISOString(),
-                _isOffline: false,
-                _lastSync: Date.now(),
-              };
-              
-              await offlineDB.taskAssignments.put(assignmentData);
-              console.log('Individual task assignment created in IndexedDB');
-            } else {
-              console.log(`Assignment already exists for task ${supabaseData.id} and staff ${newTask.assignee_id}`);
-            }
           }
 
           // Save to localStorage for cross-browser sync
@@ -314,8 +357,8 @@ export function useOfflineTasks() {
             id: offlineId,
             title: newTask.title,
             description: newTask.description,
-            assignee_id: newTask.assignee_id,
-            team_id: newTask.team_id,
+            assigned_staff_ids: newTask.assigned_staff_ids || [],
+            assigned_team_ids: newTask.assigned_team_ids || [],
             status: newTask.status,
             priority: newTask.priority,
             due_date: newTask.due_date,
@@ -348,19 +391,6 @@ export function useOfflineTasks() {
             
             await offlineDB.taskAssignments.add(assignmentData);
           }
-        } else if (newTask.assignee_id && newTask.allocation_mode === 'individual') {
-          // Individual task - single staff assignment
-          const assignmentData: OfflineTaskAssignment = {
-            id: `offline_assignment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            task_id: offlineId,
-            staff_id: newTask.assignee_id,
-            assigned_at: new Date().toISOString(),
-            _isOffline: true,
-            _lastSync: Date.now(),
-          };
-          
-          await offlineDB.taskAssignments.add(assignmentData);
-          console.log('Individual task assignment created in offline mode');
         }
 
         // Queue for sync
@@ -368,8 +398,8 @@ export function useOfflineTasks() {
           title: newTask.title,
           description: newTask.description,
           allocation_mode: newTask.allocation_mode,
-          assignee_id: newTask.assignee_id,
-          team_id: newTask.team_id,
+          assigned_staff_ids: newTask.assigned_staff_ids || [],
+          assigned_team_ids: newTask.assigned_team_ids || [],
           status: newTask.status,
           priority: newTask.priority,
           due_date: newTask.due_date,
@@ -389,13 +419,6 @@ export function useOfflineTasks() {
               assigned_at: new Date().toISOString(),
             });
           }
-        } else if (newTask.assignee_id && newTask.allocation_mode === 'individual') {
-          // Individual task - queue single assignment
-          await syncService.queueOperation('task_assignments', 'create', {
-            task_id: offlineId,
-            staff_id: newTask.assignee_id,
-            assigned_at: new Date().toISOString(),
-          });
         }
 
           // Cross-browser sync for offline data
@@ -417,9 +440,10 @@ export function useOfflineTasks() {
         };
       }
     },
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       if (result.success) {
         toast.success("Task created successfully!");
+        // Real-time sync will handle the update automatically
       } else {
         toast.error(result.error || "Failed to create task.");
       }
@@ -444,9 +468,8 @@ export function useOfflineTasks() {
       start_date?: string;
       is_repeated: boolean;
       repeat_config?: Record<string, unknown>;
-      assignee_id?: string;
-      team_id?: string;
       assigned_staff_ids?: string[];
+      assigned_team_ids?: string[];
     }
   >({
     mutationFn: async (updateData) => {
@@ -472,8 +495,8 @@ export function useOfflineTasks() {
               start_date: updateData.start_date,
               is_repeated: updateData.is_repeated,
               repeat_config: updateData.repeat_config ? JSON.stringify(updateData.repeat_config) : undefined,
-              assignee_id: updateData.assignee_id,
-              team_id: updateData.team_id,
+              assigned_staff_ids: updateData.assigned_staff_ids,
+              assigned_team_ids: updateData.assigned_team_ids,
             })
             .eq('id', updateData.id)
             .select()
@@ -505,22 +528,6 @@ export function useOfflineTasks() {
                 .from('task_assignments')
                 .insert(assignmentsToInsert);
             }
-          } else if (updateData.assignee_id !== undefined && updateData.allocation_mode === 'individual') {
-            // Individual task - remove existing assignments and add single assignment
-            await supabase
-              .from('task_assignments')
-              .delete()
-              .eq('task_id', updateData.id);
-            
-            if (updateData.assignee_id) {
-              await supabase
-                .from('task_assignments')
-                .insert({
-                  task_id: updateData.id,
-                  staff_id: updateData.assignee_id,
-                  assigned_at: new Date().toISOString(),
-                });
-            }
           }
 
           // Also update in IndexedDB for immediate UI update
@@ -528,8 +535,8 @@ export function useOfflineTasks() {
             id: supabaseData.id,
             title: supabaseData.title,
             description: supabaseData.description,
-            assignee_id: supabaseData.assignee_id,
-            team_id: supabaseData.team_id,
+            assigned_staff_ids: supabaseData.assigned_staff_ids || [],
+            assigned_team_ids: supabaseData.assigned_team_ids || [],
             status: supabaseData.status,
             priority: supabaseData.priority,
             due_date: supabaseData.due_date,
@@ -556,22 +563,6 @@ export function useOfflineTasks() {
                 id: `assignment_${updateData.id}_${staffId}`,
                 task_id: updateData.id,
                 staff_id: staffId,
-                assigned_at: new Date().toISOString(),
-                _isOffline: false,
-                _lastSync: Date.now(),
-              };
-              
-              await offlineDB.taskAssignments.put(assignmentData);
-            }
-          } else if (updateData.assignee_id !== undefined && updateData.allocation_mode === 'individual') {
-            // Individual task - remove existing and add single assignment
-            await offlineDB.taskAssignments.where('task_id').equals(updateData.id).delete();
-            
-            if (updateData.assignee_id) {
-              const assignmentData: OfflineTaskAssignment = {
-                id: `assignment_${updateData.id}_${updateData.assignee_id}`,
-                task_id: updateData.id,
-                staff_id: updateData.assignee_id,
                 assigned_at: new Date().toISOString(),
                 _isOffline: false,
                 _lastSync: Date.now(),
@@ -608,8 +599,8 @@ export function useOfflineTasks() {
             priority: updateData.priority,
             due_date: updateData.due_date,
             start_date: updateData.start_date,
-            assignee_id: updateData.assignee_id,
-            team_id: updateData.team_id,
+            assigned_staff_ids: updateData.assigned_staff_ids,
+            assigned_team_ids: updateData.assigned_team_ids,
             is_repeated: updateData.is_repeated,
             repeat_config: updateData.repeat_config ? JSON.stringify(updateData.repeat_config) : undefined,
             updated_at: new Date().toISOString(),
@@ -637,22 +628,6 @@ export function useOfflineTasks() {
               
               await offlineDB.taskAssignments.add(assignmentData);
             }
-          } else if (updateData.assignee_id !== undefined && updateData.allocation_mode === 'individual') {
-            // Individual task - remove existing and add single assignment
-            await offlineDB.taskAssignments.where('task_id').equals(updateData.id).delete();
-            
-            if (updateData.assignee_id) {
-              const assignmentData: OfflineTaskAssignment = {
-                id: `offline_assignment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                task_id: updateData.id,
-                staff_id: updateData.assignee_id,
-                assigned_at: new Date().toISOString(),
-                _isOffline: true,
-                _lastSync: Date.now(),
-              };
-              
-              await offlineDB.taskAssignments.add(assignmentData);
-            }
           }
 
           // Queue for sync
@@ -664,8 +639,8 @@ export function useOfflineTasks() {
             priority: updateData.priority,
             due_date: updateData.due_date,
             start_date: updateData.start_date,
-            assignee_id: updateData.assignee_id,
-            team_id: updateData.team_id,
+            assigned_staff_ids: updateData.assigned_staff_ids,
+            assigned_team_ids: updateData.assigned_team_ids,
             is_repeated: updateData.is_repeated,
             repeat_config: updateData.repeat_config ? JSON.stringify(updateData.repeat_config) : undefined,
           });
@@ -697,9 +672,10 @@ export function useOfflineTasks() {
         };
       }
     },
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       if (result.success) {
         toast.success("Task updated successfully!");
+        // Real-time sync will handle the update automatically
       } else {
         toast.error(result.error || "Failed to update task.");
       }
@@ -798,9 +774,10 @@ export function useOfflineTasks() {
         };
       }
     },
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       if (result.success) {
         toast.success("Task deleted successfully!");
+        // Real-time sync will handle the update automatically
       } else {
         toast.error(result.error || "Failed to delete task.");
       }
@@ -808,6 +785,16 @@ export function useOfflineTasks() {
     onError: (error) => {
       toast.error(error.message || "Failed to delete task.");
     },
+  });
+
+  // Debug logging
+  console.log('🔍 useOfflineTasks Debug:', {
+    rawTasks: tasks,
+    rawTasksLength: tasks?.length,
+    transformedTasks: tasks?.map(transformOfflineTask),
+    transformedTasksLength: tasks?.map(transformOfflineTask)?.length,
+    isLoading,
+    error
   });
 
   return {
@@ -835,5 +822,8 @@ export function useOfflineTasks() {
     // Utilities
     downloadData: syncService.downloadData.bind(syncService),
     syncAll: syncService.syncAll.bind(syncService),
+    refreshPage,
+    forceSync,
+    clearIndexedDBAndRefresh,
   };
 }

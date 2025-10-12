@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Plus } from "lucide-react";
+import { Search, Plus, RefreshCw } from "lucide-react";
 import { TaskAllocationDialog } from "./task-allocation-dialog";
 import { TasksTable } from "./tasks-table";
 import { TaskStatsCards } from "./task-stats-cards";
@@ -28,18 +28,56 @@ export function TasksManagement() {
     isOnline, 
     pendingOperations, 
     downloadData, 
-    syncAll 
+    syncAll,
+    forceSync,
+    refreshPage,
+    clearIndexedDBAndRefresh
   } = useOfflineTasks();
   
   // Local state for filters
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<TaskStatus | "all">("all");
   const [priorityFilter, setPriorityFilter] = useState<TaskPriority | "all">("all");
+  const [isClient, setIsClient] = useState(false);
+
+  // Ensure we're on the client side
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   // Handle task delete
   const handleTaskDelete = (taskId: string) => {
     deleteTask(taskId);
   };
+
+  // Debug function to check IndexedDB data
+  const debugIndexedDB = async () => {
+    try {
+      console.log('🔍 Debug: Checking IndexedDB data...');
+      
+      // Import offlineDB
+      const { offlineDB } = await import('@/lib/offline/database');
+      
+      const tasks = await offlineDB.tasks.toArray();
+      const staff = await offlineDB.staff.toArray();
+      const teams = await offlineDB.teams.toArray();
+      
+      console.log('📊 IndexedDB Data:');
+      console.log('  Tasks:', tasks.length, tasks);
+      console.log('  Staff:', staff.length, staff);
+      console.log('  Teams:', teams.length, teams);
+      
+    } catch (error) {
+      console.error('❌ Error checking IndexedDB:', error);
+    }
+  };
+
+  // Add debug function to window for easy access
+  if (typeof window !== 'undefined') {
+    (window as any).debugIndexedDB = debugIndexedDB;
+    (window as any).forceSync = forceSync;
+    (window as any).refreshPage = refreshPage;
+  }
 
   // Filter tasks
   const filteredTasks = tasks.filter(task => {
@@ -49,6 +87,32 @@ export function TasksManagement() {
     const matchesPriority = priorityFilter === "all" || task.priority === priorityFilter;
     return matchesSearch && matchesStatus && matchesPriority;
   });
+
+  // Debug logging
+  console.log('🔍 TasksManagement Debug:', {
+    tasks: tasks,
+    tasksLength: tasks?.length,
+    isLoading,
+    filteredTasks: filteredTasks,
+    filteredTasksLength: filteredTasks?.length,
+    searchQuery,
+    statusFilter,
+    priorityFilter
+  });
+
+  // Don't render until we're on the client side
+  if (!isClient) {
+    return (
+      <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-4"></div>
+            <p className="text-sm text-muted-foreground">Loading...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
@@ -65,14 +129,33 @@ export function TasksManagement() {
           </p>
         </div>
         
-        <TaskAllocationDialog 
-          trigger={
-            <Button className="w-full sm:w-auto">
-              <Plus className="h-4 w-4 mr-2" />
-              Create Task
-            </Button>
-          }
-        />
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={refreshPage}
+            className="w-full sm:w-auto"
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={forceSync}
+            disabled={!isOnline}
+            className="w-full sm:w-auto"
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Force Sync
+          </Button>
+          <TaskAllocationDialog 
+            trigger={
+              <Button className="w-full sm:w-auto">
+                <Plus className="h-4 w-4 mr-2" />
+                Create Task
+              </Button>
+            }
+          />
+        </div>
       </div>
 
       {/* Stats Cards */}

@@ -39,8 +39,8 @@ export interface OfflineTask extends OfflineData {
   id: string;
   title: string;
   description?: string;
-  assignee_id?: string;
-  assignee?: OfflineStaff;
+  assigned_staff_ids: string[];
+  assigned_team_ids: string[];
   status: 'backlog' | 'todo' | 'in_progress' | 'completed';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   due_date?: string;
@@ -48,9 +48,8 @@ export interface OfflineTask extends OfflineData {
   created_at: string;
   updated_at: string;
   allocation_mode: 'individual' | 'team';
-  team_id?: string;
-  team?: OfflineTeam;
   assigned_staff?: OfflineTaskAssignment[];
+  assigned_teams?: OfflineTeam[];
   is_repeated: boolean;
   repeat_config?: string; // JSON string
   support_files?: string[];

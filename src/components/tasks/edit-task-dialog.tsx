@@ -81,9 +81,8 @@ export function EditTaskDialog({
     status: "todo" as TaskStatus,
     priority: "medium" as TaskPriority,
     allocation_mode: "individual" as "individual" | "team",
-    assignee_id: "",
-    team_id: "",
-    member_ids: [] as string[],
+    assigned_staff_ids: [] as string[],
+    assigned_team_ids: [] as string[],
     due_date: undefined as Date | undefined,
     is_repeated: false,
   });
@@ -98,15 +97,15 @@ export function EditTaskDialog({
   const [endTime, setEndTime] = useState("17:00");
 
   // Get team members from selected team
-  const selectedTeamData = teams.find(t => t.id === formData.team_id);
+  const selectedTeamData = teams.find(t => formData.assigned_team_ids.includes(t.id));
   const teamMembersList = selectedTeamData?.members?.map(member => member.staff).filter((staff): staff is Staff => !!staff) || [];
 
   // Auto-select ALL team members when team changes
   useEffect(() => {
-    if (formData.team_id && teamMembersList.length > 0) {
-      setFormData(prev => ({ ...prev, member_ids: teamMembersList.map(m => m.id) }));
+    if (formData.assigned_team_ids.length > 0 && teamMembersList.length > 0) {
+      setFormData(prev => ({ ...prev, assigned_staff_ids: teamMembersList.map(m => m.id) }));
     }
-  }, [formData.team_id, teamMembersList.length]);
+  }, [formData.assigned_team_ids.length, teamMembersList.length]);
 
   // Load task data when dialog opens
   useEffect(() => {
@@ -117,9 +116,8 @@ export function EditTaskDialog({
         status: task.status,
         priority: task.priority,
         allocation_mode: task.allocation_mode,
-        assignee_id: task.assignee_id || "",
-        team_id: task.team_id || "",
-        member_ids: task.team_id && selectedTeamData ? teamMembersList.map(m => m.id) : [],
+        assigned_staff_ids: task.assigned_staff_ids || [],
+        assigned_team_ids: task.assigned_team_ids || [],
         due_date: task.due_date ? new Date(task.due_date) : undefined,
         is_repeated: task.is_repeated,
       });
@@ -165,9 +163,8 @@ export function EditTaskDialog({
       due_date: formData.due_date?.toISOString(),
       is_repeated: formData.is_repeated,
       repeat_config: repeatConfig ? (repeatConfig as unknown as Record<string, unknown>) : undefined,
-      assignee_id: formData.allocation_mode === 'individual' ? formData.assignee_id : undefined,
-      team_id: formData.allocation_mode === 'team' ? formData.team_id : undefined,
-      assigned_staff_ids: formData.allocation_mode === 'team' ? formData.member_ids : undefined,
+      assigned_staff_ids: formData.assigned_staff_ids,
+      assigned_team_ids: formData.assigned_team_ids,
     });
 
     onOpenChange(false);
@@ -290,20 +287,43 @@ export function EditTaskDialog({
             {formData.allocation_mode === 'individual' && (
               <div className="space-y-2">
                 <Label htmlFor="assignee" className="text-sm font-medium">
-                  Assign To *
+                  Assign Staff *
                 </Label>
-                <Select value={formData.assignee_id} onValueChange={(value) => handleInputChange("assignee_id", value)}>
+                <Select onValueChange={(value) => {
+                  if (!formData.assigned_staff_ids.includes(value)) {
+                    handleInputChange("assigned_staff_ids", [...formData.assigned_staff_ids, value]);
+                  }
+                }}>
                   <SelectTrigger className="h-10">
                     <SelectValue placeholder="Select staff member" />
                   </SelectTrigger>
                   <SelectContent>
-                    {employees.map((staff) => (
+                    {employees.filter(staff => !formData.assigned_staff_ids.includes(staff.id)).map((staff) => (
                       <SelectItem key={staff.id} value={staff.id}>
                         {staff.name} - {staff.role}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                
+                {/* Selected Staff */}
+                <div className="flex flex-wrap gap-2">
+                  {formData.assigned_staff_ids.map(staffId => {
+                    const staff = employees.find(s => s.id === staffId);
+                    return staff ? (
+                      <div key={staffId} className="flex items-center gap-1 bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">
+                        {staff.name}
+                        <button
+                          type="button"
+                          onClick={() => handleInputChange("assigned_staff_ids", formData.assigned_staff_ids.filter(id => id !== staffId))}
+                          className="ml-1 text-blue-600 hover:text-blue-800"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ) : null;
+                  })}
+                </div>
               </div>
             )}
 
@@ -312,20 +332,43 @@ export function EditTaskDialog({
               <>
                 <div className="space-y-2">
                   <Label htmlFor="team" className="text-sm font-medium">
-                    Select Team *
+                    Select Teams *
                   </Label>
-                  <Select value={formData.team_id} onValueChange={(value) => handleInputChange("team_id", value)}>
+                  <Select onValueChange={(value) => {
+                    if (!formData.assigned_team_ids.includes(value)) {
+                      handleInputChange("assigned_team_ids", [...formData.assigned_team_ids, value]);
+                    }
+                  }}>
                     <SelectTrigger className="h-10">
                       <SelectValue placeholder="Select team" />
                     </SelectTrigger>
                     <SelectContent>
-                      {teams.map((team) => (
+                      {teams.filter(team => !formData.assigned_team_ids.includes(team.id)).map((team) => (
                         <SelectItem key={team.id} value={team.id}>
                           {team.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  
+                  {/* Selected Teams */}
+                  <div className="flex flex-wrap gap-2">
+                    {formData.assigned_team_ids.map(teamId => {
+                      const team = teams.find(t => t.id === teamId);
+                      return team ? (
+                        <div key={teamId} className="flex items-center gap-1 bg-green-100 text-green-800 px-2 py-1 rounded text-sm">
+                          {team.name}
+                          <button
+                            type="button"
+                            onClick={() => handleInputChange("assigned_team_ids", formData.assigned_team_ids.filter(id => id !== teamId))}
+                            className="ml-1 text-green-600 hover:text-green-800"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ) : null;
+                    })}
+                  </div>
                 </div>
 
               </>

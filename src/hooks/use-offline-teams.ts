@@ -48,6 +48,13 @@ export function useOfflineTeams() {
     return () => window.removeEventListener('dataUpdated', handleDataUpdate);
   }, [queryClient]);
 
+  // Simple refresh function for instant UI updates
+  const refreshPage = () => {
+    if (typeof window !== 'undefined') {
+      window.location.reload();
+    }
+  };
+
   // Query to fetch all teams (offline-first)
   const {
     data: teams,
@@ -264,9 +271,11 @@ export function useOfflineTeams() {
         };
       }
     },
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       if (result.success) {
         toast.success("Team created successfully!");
+        // Clear IndexedDB and refetch for instant UI update
+        // Real-time sync will handle the update automatically
       } else {
         toast.error(result.error || "Failed to create team.");
       }
@@ -449,9 +458,11 @@ export function useOfflineTeams() {
         };
       }
     },
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       if (result.success) {
         toast.success("Team updated successfully!");
+        // Clear IndexedDB and refetch for instant UI update
+        // Real-time sync will handle the update automatically
       } else {
         toast.error(result.error || "Failed to update team.");
       }
@@ -545,9 +556,11 @@ export function useOfflineTeams() {
         };
       }
     },
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       if (result.success) {
         toast.success("Team deleted successfully!");
+        // Clear IndexedDB and refetch for instant UI update
+        // Real-time sync will handle the update automatically
       } else {
         toast.error(result.error || "Failed to delete team.");
       }
@@ -582,5 +595,6 @@ export function useOfflineTeams() {
     // Utilities
     downloadData: syncService.downloadData.bind(syncService),
     syncAll: syncService.syncAll.bind(syncService),
+    refreshPage,
   };
 }

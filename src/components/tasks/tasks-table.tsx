@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Table,
@@ -23,6 +23,8 @@ import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-di
 import { MoreVertical, Edit, Trash2, Calendar, Repeat, Users, User, Network } from "lucide-react";
 import { Task, TaskStatus, TaskPriority } from "@/types";
 import { EditTaskDialog } from "./edit-task-dialog";
+import { useOfflineStaff } from "@/hooks/use-offline-staff";
+import { useOfflineTeams } from "@/hooks/use-offline-teams";
 import { format } from "date-fns";
 
 interface TasksTableProps {
@@ -34,6 +36,118 @@ export function TasksTable({ tasks, onDelete }: TasksTableProps) {
   const router = useRouter();
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  
+  // Get staff and teams data for name resolution
+  const { staff } = useOfflineStaff();
+  const { teams } = useOfflineTeams();
+  
+  // Debug: Log staff data when it changes
+  useEffect(() => {
+    console.log('📋 Staff data loaded:', staff.length, 'staff members');
+    if (staff.length > 0) {
+      console.log('📋 Staff details:', staff.map(s => ({ id: s.id, name: s.name, profile_image_url: s.profile_image_url })));
+    }
+  }, [staff]);
+  
+  // Debug: Log task data when it changes
+  useEffect(() => {
+    if (tasks.length > 0) {
+      console.log('📝 Task data loaded:', tasks.length, 'tasks');
+      tasks.forEach(task => {
+        console.log(`📝 Task "${task.title}":`, {
+          assigned_staff_ids: task.assigned_staff_ids,
+          assigned_team_ids: task.assigned_team_ids
+        });
+        
+        // Debug staff lookup for each task
+        if (task.assigned_staff_ids?.length > 0) {
+          task.assigned_staff_ids.forEach(staffId => {
+            const foundStaff = staff.find(s => s.id === staffId);
+            console.log(`🔍 Looking for staff ID "${staffId}":`, foundStaff ? `Found: ${foundStaff.name}` : 'NOT FOUND');
+          });
+        }
+      });
+    }
+  }, [tasks, staff]);
+
+  // Expand tasks with multiple assignments into separate rows
+  const expandedTasks = tasks.flatMap(task => {
+    const assignments: Array<{ 
+      task: Task; 
+      assignee: string; 
+      assigneeName: string; 
+      assigneeImage?: string;
+      type: 'staff' | 'team' 
+    }> = [];
+    
+    
+    // Add individual staff assignments
+    if (task.assigned_staff_ids?.length > 0) {
+      task.assigned_staff_ids.forEach(staffId => {
+        const staffMember = staff.find(s => s.id === staffId);
+        let staffName: string;
+        let staffImage: string | undefined;
+        
+        if (staffMember) {
+          staffName = staffMember.name;
+          staffImage = staffMember.profile_image_url || undefined;
+        } else {
+          // Try to find by email or name if ID doesn't match
+          const alternativeStaff = staff.find(s => 
+            s.email === staffId ||
+            s.name.toLowerCase().includes(staffId.toLowerCase())
+          );
+          
+          if (alternativeStaff) {
+            staffName = alternativeStaff.name;
+            staffImage = alternativeStaff.profile_image_url || undefined;
+          } else {
+            // Final fallback - check if it's a mock ID and suggest real staff
+            if (staffId.startsWith('staff-')) {
+              staffName = `Mock Staff (${staffId}) - Please reassign`;
+            } else {
+              staffName = `Unknown Staff (${staffId})`;
+            }
+            staffImage = undefined;
+          }
+        }
+        
+        assignments.push({
+          task: { ...task, title: `${task.title} - ${staffName}` },
+          assignee: staffId,
+          assigneeName: staffName,
+          assigneeImage: staffImage,
+          type: 'staff'
+        });
+      });
+    }
+    
+    // Add team assignments
+    if (task.assigned_team_ids?.length > 0) {
+      task.assigned_team_ids.forEach(teamId => {
+        const team = teams.find(t => t.id === teamId);
+        const teamName = team?.name || `Unknown Team (${teamId})`;
+        assignments.push({
+          task: { ...task, title: `${task.title} - ${teamName}` },
+          assignee: teamId,
+          assigneeName: teamName,
+          type: 'team'
+        });
+      });
+    }
+    
+    // If no assignments, return the original task
+    if (assignments.length === 0) {
+      assignments.push({
+        task,
+        assignee: '',
+        assigneeName: 'Unassigned',
+        type: 'staff'
+      });
+    }
+    
+    return assignments;
+  });
 
   // Get status badge color
   const getStatusBadge = (status: TaskStatus) => {
@@ -73,22 +187,13 @@ export function TasksTable({ tasks, onDelete }: TasksTableProps) {
     setIsEditOpen(true);
   };
 
-  // Get assignee info
-  const getAssigneeInfo = (task: Task) => {
-    if (task.allocation_mode === "team" && task.team) {
-      return {
-        name: task.team.name,
-        image: null,
-        type: "team" as const,
-      };
-    } else if (task.assignee) {
-      return {
-        name: task.assignee.name,
-        image: task.assignee.profile_image_url,
-        type: "individual" as const,
-      };
-    }
-    return null;
+  // Get assignee info for expanded task
+  const getAssigneeInfo = (assigneeName: string, type: 'staff' | 'team', imageUrl?: string) => {
+    return {
+      name: assigneeName,
+      image: imageUrl || null,
+      type: type,
+    };
   };
 
   return (
@@ -106,36 +211,36 @@ export function TasksTable({ tasks, onDelete }: TasksTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {tasks.length === 0 ? (
+            {expandedTasks.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-12">
                   <p className="text-muted-foreground">No tasks found</p>
                 </TableCell>
               </TableRow>
             ) : (
-              tasks.map((task) => {
-                const assigneeInfo = getAssigneeInfo(task);
+              expandedTasks.map((assignment, index) => {
+                const assigneeInfo = getAssigneeInfo(assignment.assigneeName, assignment.type, assignment.assigneeImage);
                 return (
                   <TableRow 
-                    key={task.id}
+                    key={`${assignment.task.id}-${assignment.assignee}-${index}`}
                   >
                     <TableCell>
                       <div className="flex items-start gap-3">
                         <div className="flex-1 min-w-0">
                           <div className="font-medium flex items-center gap-2">
                             <button
-                              onClick={() => router.push(`/admin/tasks/${task.id}/diagram`)}
+                              onClick={() => router.push(`/admin/tasks/${assignment.task.id}/diagram`)}
                               className="hover:text-primary hover:underline transition-colors text-left"
                             >
-                              {task.title}
+                              {assignment.task.title}
                             </button>
-                            {task.is_repeated && (
+                            {assignment.task.is_repeated && (
                               <Repeat className="h-3 w-3 text-muted-foreground" />
                             )}
                           </div>
-                          {task.description && (
+                          {assignment.task.description && (
                             <p className="text-sm text-muted-foreground mt-0.5 line-clamp-1">
-                              {task.description}
+                              {assignment.task.description}
                             </p>
                           )}
                         </div>
@@ -162,7 +267,7 @@ export function TasksTable({ tasks, onDelete }: TasksTableProps) {
                             <span className="text-muted-foreground text-xs">
                               {assigneeInfo.type === "team" 
                                 ? "Team" 
-                                : task.assignee?.role || "Staff"}
+                                : "Staff"}
                             </span>
                           </div>
                         </div>
@@ -171,20 +276,20 @@ export function TasksTable({ tasks, onDelete }: TasksTableProps) {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge className={getStatusBadge(task.status)}>
-                        {formatStatus(task.status)}
+                      <Badge className={getStatusBadge(assignment.task.status)}>
+                        {formatStatus(assignment.task.status)}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge className={getPriorityBadge(task.priority)}>
-                        {formatPriority(task.priority)}
+                      <Badge className={getPriorityBadge(assignment.task.priority)}>
+                        {formatPriority(assignment.task.priority)}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {task.due_date ? (
+                      {assignment.task.due_date ? (
                         <div className="flex items-center gap-1.5 text-sm">
                           <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                          {format(new Date(task.due_date), "MMM dd, yyyy")}
+                          {format(new Date(assignment.task.due_date), "MMM dd, yyyy")}
                         </div>
                       ) : (
                         <span className="text-muted-foreground text-sm">No due date</span>
@@ -201,7 +306,7 @@ export function TasksTable({ tasks, onDelete }: TasksTableProps) {
                           <DropdownMenuItem
                             onClick={(e) => {
                               e.stopPropagation();
-                              router.push(`/admin/tasks/${task.id}/diagram`);
+                              router.push(`/admin/tasks/${assignment.task.id}/diagram`);
                             }}
                           >
                             <Network className="h-4 w-4 mr-2" />
@@ -210,7 +315,7 @@ export function TasksTable({ tasks, onDelete }: TasksTableProps) {
                           <DropdownMenuItem
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleEdit(task);
+                              handleEdit(assignment.task);
                             }}
                           >
                             <Edit className="h-4 w-4 mr-2" />
@@ -233,7 +338,7 @@ export function TasksTable({ tasks, onDelete }: TasksTableProps) {
                             }
                             title="Delete Task?"
                             description="Are you sure you want to delete this task? This action cannot be undone and will permanently remove the task from our servers."
-                            onConfirm={() => onDelete(task.id)}
+                            onConfirm={() => onDelete(assignment.task.id)}
                             confirmText="Delete Task"
                           />
                         </DropdownMenuContent>

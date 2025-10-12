@@ -30,7 +30,7 @@ const getInitials = (name: string) => {
 
 const getTeamProductivity = (teamId: string, tasks: Task[]) => {
   const teamTasks = tasks.filter(task => 
-    task.team && task.team.id === teamId
+    task.assigned_team_ids && task.assigned_team_ids.includes(teamId)
   );
   
   if (teamTasks.length === 0) return { completed: 0, total: 0, percentage: 0 };

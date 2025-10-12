@@ -23,6 +23,7 @@ const transformOfflineStaff = (staff: OfflineStaff) => ({
 
 export function useOfflineStaff() {
   const queryClient = useQueryClient();
+  const supabase = createClient();
   const [syncStatus, setSyncStatus] = useState(() => {
     // Only access syncService on client-side
     if (typeof window === 'undefined') return { isOnline: false, isSyncing: false, lastSync: null, pendingOperations: 0 };
@@ -49,6 +50,13 @@ export function useOfflineStaff() {
     return () => window.removeEventListener('dataUpdated', handleDataUpdate);
   }, [queryClient]);
 
+  // Simple refresh function for instant UI updates
+  const refreshPage = () => {
+    if (typeof window !== 'undefined') {
+      window.location.reload();
+    }
+  };
+
   // Query to fetch all staff (offline-first)
   const {
     data: staff,
@@ -58,7 +66,49 @@ export function useOfflineStaff() {
     queryKey: ["offline-staff"],
     queryFn: async () => {
       if (typeof window === 'undefined') return [];
-      return await offlineDB.staff.orderBy('created_at').reverse().toArray();
+      
+      console.log('🔍 Fetching staff data from IndexedDB...');
+      const staffData = await offlineDB.staff.orderBy('created_at').reverse().toArray();
+      console.log('📋 Staff data from IndexedDB:', staffData.length, 'staff members');
+      
+      // If no staff data in IndexedDB, try to sync from Supabase
+      if (staffData.length === 0 && syncStatus.isOnline) {
+        console.log('🔄 No staff data in IndexedDB, syncing from Supabase...');
+        try {
+          // Try to sync staff data from Supabase
+          await syncService.syncAll();
+          const refreshedStaffData = await offlineDB.staff.orderBy('created_at').reverse().toArray();
+          console.log('📋 Staff data after sync:', refreshedStaffData.length, 'staff members');
+          return refreshedStaffData;
+        } catch (syncError) {
+          console.error('❌ Error syncing staff data:', syncError);
+          // If sync fails, try direct Supabase query as fallback
+          try {
+            console.log('🔄 Fallback: Direct Supabase query for staff data...');
+            const { data: supabaseStaff, error } = await supabase
+              .from('staff')
+              .select('*')
+              .order('created_at', { ascending: false });
+            
+            if (error) {
+              console.error('❌ Supabase staff query error:', error);
+            } else if (supabaseStaff && supabaseStaff.length > 0) {
+              console.log('📋 Direct Supabase staff data:', supabaseStaff.length, 'staff members');
+              // Store in IndexedDB for future use
+              await offlineDB.staff.bulkPut(supabaseStaff.map(staff => ({
+                ...staff,
+                _isOffline: false,
+                _lastSync: Date.now()
+              })));
+              return supabaseStaff;
+            }
+          } catch (fallbackError) {
+            console.error('❌ Fallback staff query error:', fallbackError);
+          }
+        }
+      }
+      
+      return staffData;
     },
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 10, // 10 minutes
@@ -211,13 +261,15 @@ export function useOfflineStaff() {
         };
       }
     },
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       if (result.success) {
         if (result.data && !result.data._isOffline) {
           toast.success("Staff created successfully in Supabase!");
         } else {
           toast.success("Staff added locally! Will sync when online.");
         }
+        // Clear IndexedDB and refetch for instant UI update
+        // Real-time sync will handle the update automatically
       } else {
         toast.error(result.error || "Failed to create staff.");
       }
@@ -361,13 +413,15 @@ export function useOfflineStaff() {
         };
       }
     },
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       if (result.success) {
         if (syncStatus.isOnline) {
           toast.success("Staff updated successfully!");
         } else {
           toast.success("Staff updated locally! Will sync when online.");
         }
+        // Clear IndexedDB and refetch for instant UI update
+        // Real-time sync will handle the update automatically
       } else {
         toast.error(result.error || "Failed to update staff.");
       }
@@ -444,13 +498,15 @@ export function useOfflineStaff() {
         };
       }
     },
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       if (result.success) {
         if (syncStatus.isOnline) {
           toast.success("Staff deleted successfully!");
         } else {
           toast.success("Staff deleted locally! Will sync when online.");
         }
+        // Clear IndexedDB and refetch for instant UI update
+        // Real-time sync will handle the update automatically
       } else {
         toast.error(result.error || "Failed to delete staff.");
       }
@@ -485,5 +541,6 @@ export function useOfflineStaff() {
     // Utilities
     downloadData: syncService.downloadData.bind(syncService),
     syncAll: syncService.syncAll.bind(syncService),
+    refreshPage,
   };
 }

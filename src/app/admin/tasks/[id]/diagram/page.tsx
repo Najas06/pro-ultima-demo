@@ -81,13 +81,11 @@ export default function TaskDiagramPage({ params }: PageProps) {
       },
     });
 
-    if (task.allocation_mode === 'team' && task.team) {
+    if (task.allocation_mode === 'team' && task.assigned_team_ids?.length > 0) {
       // Team node
       const teamSchema = [
-        { title: "Team Name", value: task.team.name, handleId: undefined },
-        { title: "Branch", value: task.team.branch || "Not set", handleId: undefined },
-        { title: "Leader", value: task.team.leader?.name || "Not assigned", handleId: undefined },
-        { title: "Members", value: `${task.assigned_staff?.length || 0} members`, handleId: "team-members" },
+        { title: "Teams Assigned", value: `${task.assigned_team_ids.length} team${task.assigned_team_ids.length > 1 ? 's' : ''}`, handleId: undefined },
+        { title: "Staff Members", value: `${task.assigned_staff_ids?.length || 0} members`, handleId: "team-members" },
       ];
 
       newNodes.push({
@@ -95,7 +93,7 @@ export default function TaskDiagramPage({ params }: PageProps) {
         type: "taskNode",
         position: { x: 450, y: 50 },
         data: {
-          label: `Team: ${task.team.name}`,
+          label: `Teams: ${task.assigned_team_ids.length}`,
           schema: teamSchema,
           nodeType: 'team',
         },
@@ -147,33 +145,34 @@ export default function TaskDiagramPage({ params }: PageProps) {
           }
         });
       }
-    } else if (task.allocation_mode === 'individual' && task.assignee) {
-      // Individual assignee node
-      const memberSchema = [
-        { title: "Email", value: task.assignee.email || "Not set" },
-        { title: "Role", value: task.assignee.role || "Not set" },
-        { title: "Department", value: task.assignee.department || "Not set" },
-      ];
+    } else if (task.allocation_mode === 'individual' && task.assigned_staff_ids?.length > 0) {
+      // Individual assignee nodes
+      task.assigned_staff_ids.forEach((staffId: string, index: number) => {
+        const memberSchema = [
+          { title: "Staff ID", value: staffId },
+          { title: "Assignment", value: `Staff member ${index + 1}` },
+        ];
 
-      newNodes.push({
-        id: `assignee-${task.assignee.id}`,
-        type: "memberNode",
-        position: { x: 450, y: 50 },
-        data: {
-          label: task.assignee.name,
-          schema: memberSchema,
-        },
-      });
+        newNodes.push({
+          id: `assignee-${staffId}`,
+          type: "memberNode",
+          position: { x: 450, y: 50 + (index * 150) },
+          data: {
+            label: `Staff: ${staffId.slice(0, 8)}`,
+            schema: memberSchema,
+          },
+        });
 
-      // Edge from task to assignee
-      newEdges.push({
-        id: "task-assignee",
-        source: "task",
-        sourceHandle: "allocation",
-        target: `assignee-${task.assignee.id}`,
-        targetHandle: "member-input",
-        animated: true,
-        style: { stroke: '#22c55e', strokeWidth: 2 },
+        // Edge from task to assignee
+        newEdges.push({
+          id: `task-assignee-${staffId}`,
+          source: "task",
+          sourceHandle: "allocation",
+          target: `assignee-${staffId}`,
+          targetHandle: "member-input",
+          animated: true,
+          style: { stroke: '#22c55e', strokeWidth: 2 },
+        });
       });
     }
 
@@ -251,7 +250,7 @@ export default function TaskDiagramPage({ params }: PageProps) {
               <CardHeader>
                 <CardTitle>Task Not Found</CardTitle>
                 <CardDescription>
-                  The task you're looking for doesn't exist or has been deleted.
+                  The task you&apos;re looking for doesn&apos;t exist or has been deleted.
                 </CardDescription>
               </CardHeader>
               <CardContent>

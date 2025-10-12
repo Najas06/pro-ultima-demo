@@ -887,14 +887,15 @@ class SyncService {
         description: 'Create login and registration system',
         status: 'in_progress' as const,
         priority: 'high' as const,
-        assignee_id: 'staff_2',
-        team_id: 'team_1',
+        assigned_staff_ids: ['staff_2'],
+        assigned_team_ids: [],
         allocation_mode: 'individual' as const,
         due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         is_repeated: false,
         repeat_config: undefined,
+        support_files: [],
         _isOffline: true,
         _lastSync: Date.now(),
       },
@@ -904,14 +905,15 @@ class SyncService {
         description: 'Create wireframes and mockups for the new dashboard',
         status: 'todo' as const,
         priority: 'medium' as const,
-        assignee_id: 'staff_3',
-        team_id: 'team_2',
+        assigned_staff_ids: ['staff_3'],
+        assigned_team_ids: [],
         allocation_mode: 'individual' as const,
         due_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 days from now
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         is_repeated: false,
         repeat_config: undefined,
+        support_files: [],
         _isOffline: true,
         _lastSync: Date.now(),
       },
@@ -921,14 +923,15 @@ class SyncService {
         description: 'Review and approve pull requests',
         status: 'completed' as const,
         priority: 'low' as const,
-        assignee_id: 'staff_1',
-        team_id: 'team_1',
+        assigned_staff_ids: ['staff_1'],
+        assigned_team_ids: [],
         allocation_mode: 'individual' as const,
         due_date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago
         created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 days ago
         updated_at: new Date().toISOString(),
         is_repeated: false,
         repeat_config: undefined,
+        support_files: [],
         _isOffline: true,
         _lastSync: Date.now(),
       },
@@ -1005,7 +1008,7 @@ class SyncService {
       );
       
       for (const task of sortedTasks) {
-        const key = `${task.title}_${task.description}_${task.assignee_id}_${task.team_id}`;
+        const key = `${task.title}_${task.description}_${task.assigned_staff_ids.join(',')}_${task.assigned_team_ids.join(',')}`;
         
         if (seenTasks.has(key)) {
           // This is a duplicate, mark for deletion
@@ -1086,7 +1089,7 @@ class SyncService {
       console.log('Team tasks:', teamTasks.map(t => ({
         id: t.id,
         title: t.title,
-        team_id: t.team_id,
+        assigned_team_ids: t.assigned_team_ids,
         assignments: taskAssignments.filter(ta => ta.task_id === t.id).length
       })));
       
@@ -1285,7 +1288,7 @@ class SyncService {
   }
 
   // Manual IndexedDB update after Supabase operations (bypasses real-time sync)
-  async updateIndexedDBAfterSupabaseOperation(operation: 'create' | 'update' | 'delete', table: string, data: any) {
+  async updateIndexedDBAfterSupabaseOperation(operation: 'create' | 'update' | 'delete', table: string, data: Record<string, unknown>) {
     try {
       console.log(`🔧 Manual IndexedDB update: ${operation} ${table}`, data);
       
@@ -1294,14 +1297,14 @@ class SyncService {
           if (operation === 'delete') {
             await offlineDB.tasks.delete(data.id);
             // Also delete related task assignments
-            await offlineDB.taskAssignments.where('task_id').equals(data.id).delete();
+            await offlineDB.taskAssignments.where('task_id').equals(data.id as string).delete();
             console.log(`🗑️ Manually deleted task ${data.id} from IndexedDB`);
           } else if (operation === 'create' || operation === 'update') {
             await offlineDB.tasks.put({
               ...data,
               _isOffline: false,
               _lastSync: Date.now()
-            });
+            } as OfflineTask);
             console.log(`📝 Manually ${operation}d task ${data.id} in IndexedDB`);
           }
           break;
@@ -1315,7 +1318,7 @@ class SyncService {
               ...data,
               _isOffline: false,
               _lastSync: Date.now()
-            });
+            } as OfflineTaskAssignment);
             console.log(`📝 Manually ${operation}d task assignment ${data.id} in IndexedDB`);
           }
           break;
@@ -1329,7 +1332,7 @@ class SyncService {
               ...data,
               _isOffline: false,
               _lastSync: Date.now()
-            });
+            } as OfflineStaff);
             console.log(`📝 Manually ${operation}d staff ${data.id} in IndexedDB`);
           }
           break;
@@ -1338,14 +1341,14 @@ class SyncService {
           if (operation === 'delete') {
             await offlineDB.teams.delete(data.id);
             // Also delete related team members
-            await offlineDB.teamMembers.where('team_id').equals(data.id).delete();
+            await offlineDB.teamMembers.where('team_id').equals(data.id as string).delete();
             console.log(`🗑️ Manually deleted team ${data.id} from IndexedDB`);
           } else if (operation === 'create' || operation === 'update') {
             await offlineDB.teams.put({
               ...data,
               _isOffline: false,
               _lastSync: Date.now()
-            });
+            } as OfflineTeam);
             console.log(`📝 Manually ${operation}d team ${data.id} in IndexedDB`);
           }
           break;
@@ -1359,7 +1362,7 @@ class SyncService {
               ...data,
               _isOffline: false,
               _lastSync: Date.now()
-            });
+            } as OfflineTeamMember);
             console.log(`📝 Manually ${operation}d team member ${data.id} in IndexedDB`);
           }
           break;
