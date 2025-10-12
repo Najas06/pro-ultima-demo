@@ -4,7 +4,7 @@ import { use, useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { ReactFlow, Background, Controls, Node, Edge, BackgroundVariant, Panel, ReactFlowProvider } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useOfflineTasks } from "@/hooks/use-offline-tasks";
+import { useTasks } from "@/hooks/use-tasks";
 import TaskDiagramNode from "@/components/tasks/task-diagram-node";
 import MemberNode from "@/components/tasks/member-node";
 import { Button } from "@/components/ui/button";
@@ -31,7 +31,7 @@ export default function TaskDiagramPage({ params }: PageProps) {
   const router = useRouter();
   const resolvedParams = use(params);
   const queryClient = useQueryClient();
-  const { tasks, isLoading } = useOfflineTasks();
+  const { tasks, isLoading } = useTasks();
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);

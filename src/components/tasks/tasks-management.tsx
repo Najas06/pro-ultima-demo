@@ -14,8 +14,7 @@ import { Search, Plus, RefreshCw } from "lucide-react";
 import { TaskAllocationDialog } from "./task-allocation-dialog";
 import { TasksTable } from "./tasks-table";
 import { TaskStatsCards } from "./task-stats-cards";
-import { useOfflineTasks } from "@/hooks/use-offline-tasks";
-import { SyncStatusIndicator } from "@/components/ui/sync-status-indicator";
+import { useTasks } from "@/hooks/use-tasks";
 import { TaskStatus, TaskPriority } from "@/types";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -23,16 +22,9 @@ export function TasksManagement() {
   const { 
     tasks, 
     isLoading, 
-    deleteTask, 
-    syncStatus, 
-    isOnline, 
-    pendingOperations, 
-    downloadData, 
-    syncAll,
-    forceSync,
-    refreshPage,
-    clearIndexedDBAndRefresh
-  } = useOfflineTasks();
+    deleteTask,
+    refetch
+  } = useTasks();
   
   // Local state for filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -50,34 +42,10 @@ export function TasksManagement() {
     deleteTask(taskId);
   };
 
-  // Debug function to check IndexedDB data
-  const debugIndexedDB = async () => {
-    try {
-      console.log('🔍 Debug: Checking IndexedDB data...');
-      
-      // Import offlineDB
-      const { offlineDB } = await import('@/lib/offline/database');
-      
-      const tasks = await offlineDB.tasks.toArray();
-      const staff = await offlineDB.staff.toArray();
-      const teams = await offlineDB.teams.toArray();
-      
-      console.log('📊 IndexedDB Data:');
-      console.log('  Tasks:', tasks.length, tasks);
-      console.log('  Staff:', staff.length, staff);
-      console.log('  Teams:', teams.length, teams);
-      
-    } catch (error) {
-      console.error('❌ Error checking IndexedDB:', error);
-    }
+  // Simplified refresh function
+  const handleRefresh = () => {
+    refetch();
   };
-
-  // Add debug function to window for easy access
-  if (typeof window !== 'undefined') {
-    (window as any).debugIndexedDB = debugIndexedDB;
-    (window as any).forceSync = forceSync;
-    (window as any).refreshPage = refreshPage;
-  }
 
   // Filter tasks
   const filteredTasks = tasks.filter(task => {
@@ -121,31 +89,20 @@ export function TasksManagement() {
         <div>
           <div className="flex items-center gap-3">
             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Task Management</h2>
-            <SyncStatusIndicator showDownloadButton={true} />
           </div>
           <p className="text-sm text-muted-foreground mt-1">
             Manage and track all your tasks in one place
-            {!isOnline && " (Working offline)"}
           </p>
         </div>
         
         <div className="flex gap-2">
           <Button 
             variant="outline" 
-            onClick={refreshPage}
+            onClick={handleRefresh}
             className="w-full sm:w-auto"
           >
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={forceSync}
-            disabled={!isOnline}
-            className="w-full sm:w-auto"
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Force Sync
           </Button>
           <TaskAllocationDialog 
             trigger={

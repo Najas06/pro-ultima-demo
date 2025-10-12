@@ -38,9 +38,9 @@ import {
   Save,
   Repeat,
 } from "lucide-react";
-import { useOfflineTasks } from "@/hooks/use-offline-tasks";
-import { useOfflineStaff } from "@/hooks/use-offline-staff";
-import { useOfflineTeams } from "@/hooks/use-offline-teams";
+import { useTasks } from "@/hooks/use-tasks";
+import { useStaff } from "@/hooks/use-staff";
+import { useTeams } from "@/hooks/use-teams";
 import type { Task, TaskRepeatConfig, Staff, TaskStatus, TaskPriority } from "@/types";
 
 interface EditTaskDialogProps {
@@ -54,9 +54,9 @@ export function EditTaskDialog({
   isOpen,
   onOpenChange,
 }: EditTaskDialogProps) {
-  const { updateTask, isUpdating } = useOfflineTasks();
-  const { staff } = useOfflineStaff();
-  const { teams } = useOfflineTeams();
+  const { updateTask, isUpdating } = useTasks();
+  const { staff } = useStaff();
+  const { teams, teamMembers } = useTeams();
 
   // Transform staff to match expected interface
   const employees = staff.map(s => ({
@@ -96,9 +96,11 @@ export function EditTaskDialog({
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("17:00");
 
-  // Get team members from selected team
-  const selectedTeamData = teams.find(t => formData.assigned_team_ids.includes(t.id));
-  const teamMembersList = selectedTeamData?.members?.map(member => member.staff).filter((staff): staff is Staff => !!staff) || [];
+  // Get team members from selected teams
+  const selectedTeamMemberIds = teamMembers
+    ?.filter(tm => formData.assigned_team_ids.includes(tm.team_id))
+    .map(tm => tm.staff_id) || [];
+  const teamMembersList = staff.filter(s => selectedTeamMemberIds.includes(s.id));
 
   // Auto-select ALL team members when team changes
   useEffect(() => {
@@ -162,7 +164,7 @@ export function EditTaskDialog({
       priority: formData.priority,
       due_date: formData.due_date?.toISOString(),
       is_repeated: formData.is_repeated,
-      repeat_config: repeatConfig ? (repeatConfig as unknown as Record<string, unknown>) : undefined,
+      repeat_config: repeatConfig,
       assigned_staff_ids: formData.assigned_staff_ids,
       assigned_team_ids: formData.assigned_team_ids,
     });

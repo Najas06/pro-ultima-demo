@@ -2,7 +2,6 @@
 
 import { useEffect } from "react";
 import { initializePWA } from "@/lib/pwa";
-import { syncService } from "@/lib/offline/sync-service";
 
 // Global flag to prevent multiple initializations
 let isInitialized = false;
@@ -16,31 +15,15 @@ export function PWAInitializer() {
     }
 
     isInitialized = true;
-    console.log('PWA Initializer: Starting initialization...');
+    console.log('PWA Initializer: Starting PWA initialization...');
 
-    // Initialize PWA features
+    // Initialize PWA features (service worker, manifest, install prompt)
     initializePWA();
     
-    // Download initial data when online
-    const downloadInitialData = async () => {
-      try {
-        console.log('PWA Initializer: Starting data download...');
-        await syncService.downloadData();
-        console.log('PWA Initializer: Data downloaded successfully');
-        
-        // DO NOT auto-refresh - let React Query handle data updates
-        
-      } catch (error) {
-        console.error('PWA Initializer: Failed to download initial data:', error);
-      }
-    };
-
-    // Only download data once on first load
-    downloadInitialData();
+    console.log('PWA Initializer: Initialization complete');
 
     // Cleanup on unmount
     return () => {
-      syncService.destroy();
       isInitialized = false; // Reset flag on cleanup
     };
   }, []);

@@ -37,9 +37,9 @@ import {
   X,
 } from "lucide-react";
 import { IconCirclePlusFilled } from "@tabler/icons-react";
-import { useOfflineTasks } from "@/hooks/use-offline-tasks";
-import { useOfflineStaff } from "@/hooks/use-offline-staff";
-import { useOfflineTeams } from "@/hooks/use-offline-teams";
+import { useTasks } from "@/hooks/use-tasks";
+import { useStaff } from "@/hooks/use-staff";
+import { useTeams } from "@/hooks/use-teams";
 import type { TaskFormData, TaskRepeatConfig, Staff } from "@/types";
 
 interface TaskAllocationDialogProps {
@@ -47,9 +47,9 @@ interface TaskAllocationDialogProps {
 }
 
 export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
-  const { createTask, isCreating } = useOfflineTasks();
-  const { staff } = useOfflineStaff();
-  const { teams } = useOfflineTeams();
+  const { createTask, isCreating } = useTasks();
+  const { staff } = useStaff();
+  const { teams, teamMembers } = useTeams();
 
   // Transform staff to match expected interface
   const employees = staff.map(s => ({
@@ -95,10 +95,11 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
 
   // Get team members from selected teams
   const selectedTeamData = teams.filter(t => selectedTeam.includes(t.id));
-  const teamMembersList = selectedTeamData.flatMap(team => 
-    team.members?.map(member => member.staff).filter((staff): staff is Staff => !!staff) || []
-  );
-  const loadingTeamMembers = false; // No loading state needed for offline data
+  const selectedTeamMemberIds = teamMembers
+    ?.filter(tm => selectedTeam.includes(tm.team_id))
+    .map(tm => tm.staff_id) || [];
+  const teamMembersList = staff.filter(s => selectedTeamMemberIds.includes(s.id));
+  const loadingTeamMembers = false;
 
   // Auto-select ALL team members when teams change
   useEffect(() => {
@@ -200,10 +201,9 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
       support_files: files,
     };
 
-    // Convert TaskRepeatConfig to Record<string, unknown> for offline storage
+    // Prepare task data
     const taskData = {
       ...formData,
-      repeat_config: formData.repeat_config ? (formData.repeat_config as unknown as Record<string, unknown>) : undefined,
       support_files: files?.map(file => file.name) || undefined, // Convert File[] to string[]
     };
     createTask(taskData);
@@ -560,7 +560,9 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
                         <SelectItem key={team.id} value={team.id}>
                           <div className="flex items-center gap-2">
                             <span>{team.name}</span>
-                            <span className="text-xs text-muted-foreground">({team.members?.length || 0} members)</span>
+                            <span className="text-xs text-muted-foreground">
+                              ({teamMembers?.filter(tm => tm.team_id === team.id).length || 0} members)
+                            </span>
                           </div>
                         </SelectItem>
                       ))}

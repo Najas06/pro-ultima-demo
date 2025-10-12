@@ -30,7 +30,19 @@ import {
   Shield,
   Star
 } from "lucide-react";
-import { Employee } from "@/hooks/use-staff";
+// Employee type is defined inline in employee-form-optimized.tsx
+// Using a compatible interface here
+interface Employee {
+  id: string;
+  name: string;
+  email: string;
+  employeeId: string; // Required, not optional
+  role: string;
+  department: string;
+  branch?: string;
+  phone?: string;
+  profileImage: string | null; // Can be null but not undefined
+}
 import Link from "next/link";
 
 interface StaffCardProps {

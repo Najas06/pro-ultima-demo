@@ -23,12 +23,11 @@ import { Plus, MoreVertical, Edit, Trash2, Users, Clock, AlertCircle, ListTodo }
 import { TaskAllocationDialog } from "@/components/tasks/task-allocation-dialog";
 import { TeamFormDialog } from "@/components/teams/team-form-dialog";
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog";
-import { useOfflineTasks } from "@/hooks/use-offline-tasks";
-import { useOfflineStaff } from "@/hooks/use-offline-staff";
-import { useOfflineTeams } from "@/hooks/use-offline-teams";
-import { SyncStatusIndicator } from "@/components/ui/sync-status-indicator";
+import { AttendanceWidget } from "@/components/admin/attendance-widget";
+import { useTasks } from "@/hooks/use-tasks";
+import { useStaff } from "@/hooks/use-staff";
+import { useTeams } from "@/hooks/use-teams";
 import { useRouter } from "next/navigation";
-import { syncService } from "@/lib/offline/sync-service";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from "@/components/ui/chart";
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -97,9 +96,9 @@ const formatStatus = (status: string) => {
 
 export function DashboardClient() {
   const queryClient = useQueryClient();
-  const { tasks, deleteTask } = useOfflineTasks();
-  const { staff, deleteStaff } = useOfflineStaff();
-  const { teams, deleteTeam } = useOfflineTeams();
+  const { tasks, deleteTask } = useTasks();
+  const { staff, deleteStaff } = useStaff();
+  const { teams, teamMembers, deleteTeam } = useTeams();
   const router = useRouter();
   
   const [isTeamDialogOpen, setIsTeamDialogOpen] = useState(false);
@@ -108,55 +107,39 @@ export function DashboardClient() {
 
   // Cleanup duplicate assignments
   const handleCleanupDuplicates = async () => {
-    try {
-      const removed = await syncService.cleanupDuplicateTaskAssignments();
-      if (removed > 0) {
-        // Refresh data after cleanup
-        queryClient.invalidateQueries({ queryKey: ['offline-tasks'] });
-        queryClient.invalidateQueries({ queryKey: ['offline-staff'] });
-        queryClient.invalidateQueries({ queryKey: ['offline-teams'] });
-        window.dispatchEvent(new CustomEvent('dataUpdated'));
-      }
-    } catch (error) {
-      console.error('Failed to cleanup duplicates:', error);
-    }
+    // No longer needed - direct Supabase queries prevent duplicates
+    alert('✅ No cleanup needed with real-time sync!');
   };
 
-  // Clear all data (nuclear option)
+  // Refresh all data from Supabase
   const handleClearAllData = async () => {
-    if (confirm('⚠️ This will clear ALL local data including tasks, staff, and teams. This action cannot be undone. Are you sure?')) {
-      try {
-        await syncService.clearAllData();
-        // Refresh data after clearing
-        queryClient.invalidateQueries({ queryKey: ['offline-tasks'] });
-        queryClient.invalidateQueries({ queryKey: ['offline-staff'] });
-        queryClient.invalidateQueries({ queryKey: ['offline-teams'] });
-        window.dispatchEvent(new CustomEvent('dataUpdated'));
-        alert('✅ All local data cleared. The app will sync fresh data from Supabase.');
-      } catch (error) {
-        console.error('Failed to clear data:', error);
-        alert('❌ Failed to clear data. Check console for details.');
-      }
+    try {
+      // Invalidate all queries to refetch from Supabase
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['staff'] });
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      window.dispatchEvent(new CustomEvent('dataUpdated'));
+      alert('✅ Data refreshed from Supabase!');
+    } catch (error) {
+      console.error('Failed to refresh data:', error);
+      alert('❌ Failed to refresh data. Check console for details.');
     }
   };
 
   // Force sync from Supabase
   const handleForceSync = async () => {
     try {
-      const success = await syncService.forceSyncFromSupabase();
-      if (success) {
-        // Refresh data after sync
-        queryClient.invalidateQueries({ queryKey: ['offline-tasks'] });
-        queryClient.invalidateQueries({ queryKey: ['offline-staff'] });
-        queryClient.invalidateQueries({ queryKey: ['offline-teams'] });
-        window.dispatchEvent(new CustomEvent('dataUpdated'));
-        alert('✅ Data synced from Supabase successfully!');
-      } else {
-        alert('❌ Failed to sync from Supabase. Check console for details.');
-      }
+      // Invalidate all queries to refetch from Supabase
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['staff'] });
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      window.dispatchEvent(new CustomEvent('dataUpdated'));
+      alert('✅ Data refreshed from Supabase successfully!');
     } catch (error) {
-      console.error('Failed to force sync:', error);
-      alert('❌ Failed to sync from Supabase. Check console for details.');
+      console.error('Failed to refresh:', error);
+      alert('❌ Failed to refresh data. Check console for details.');
     }
   };
 
@@ -164,9 +147,10 @@ export function DashboardClient() {
   useEffect(() => {
     const handleDataUpdate = () => {
       // Invalidate all offline queries to trigger refetch
-      queryClient.invalidateQueries({ queryKey: ['offline-tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['offline-staff'] });
-      queryClient.invalidateQueries({ queryKey: ['offline-teams'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['staff'] });
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      queryClient.invalidateQueries({ queryKey: ['team-members'] });
     };
 
     // Listen for custom dataUpdated event
@@ -269,7 +253,6 @@ export function DashboardClient() {
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-            <SyncStatusIndicator showDownloadButton={false} />
             <Button
               variant="outline"
               size="sm"
@@ -768,7 +751,8 @@ export function DashboardClient() {
                     <div>
                       <p className="text-sm font-medium">{team.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {team.leader?.name || "No leader"} • {team.members?.length || 0} members
+                        {/* Count members from teamMembers array */}
+                        {staff.find(s => s.id === team.leader_id)?.name || "No leader"} • {teamMembers?.filter(tm => tm.team_id === team.id).length || 0} members
                       </p>
                     </div>
                   </div>
@@ -802,6 +786,11 @@ export function DashboardClient() {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Attendance Widget */}
+      <div className="mt-6">
+        <AttendanceWidget />
       </div>
     </div>
   );

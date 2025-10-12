@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/lib/providers/query-provider";
+import { AuthProvider } from "@/contexts/auth-context";
 import { Toaster } from "sonner";
 import { PWAInitializer } from "@/components/pwa-initializer";
 import { InstallPrompt } from "@/components/install-prompt";
@@ -57,10 +58,12 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <QueryProvider>
-          <PWAInitializer />
-          <InstallPrompt />
-          {children}
-          <Toaster position="top-right" richColors />
+          <AuthProvider>
+            <PWAInitializer />
+            <InstallPrompt />
+            {children}
+            <Toaster position="top-right" richColors />
+          </AuthProvider>
         </QueryProvider>
       </body>
     </html>

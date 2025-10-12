@@ -23,8 +23,8 @@ import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-di
 import { MoreVertical, Edit, Trash2, Calendar, Repeat, Users, User, Network } from "lucide-react";
 import { Task, TaskStatus, TaskPriority } from "@/types";
 import { EditTaskDialog } from "./edit-task-dialog";
-import { useOfflineStaff } from "@/hooks/use-offline-staff";
-import { useOfflineTeams } from "@/hooks/use-offline-teams";
+import { useStaff } from "@/hooks/use-staff";
+import { useTeams } from "@/hooks/use-teams";
 import { format } from "date-fns";
 
 interface TasksTableProps {
@@ -38,8 +38,8 @@ export function TasksTable({ tasks, onDelete }: TasksTableProps) {
   const [isEditOpen, setIsEditOpen] = useState(false);
   
   // Get staff and teams data for name resolution
-  const { staff } = useOfflineStaff();
-  const { teams } = useOfflineTeams();
+  const { staff } = useStaff();
+  const { teams } = useTeams();
   
   // Debug: Log staff data when it changes
   useEffect(() => {

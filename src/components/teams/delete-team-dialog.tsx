@@ -37,11 +37,12 @@ const formatBranch = (branch?: string) => {
 };
 
 export function DeleteTeamDialog({ team, isOpen, onClose }: DeleteTeamDialogProps) {
-  const { deleteTeam, isDeleting } = useTeams();
+  const { deleteTeam, isDeleting, teamMembers } = useTeams();
 
   if (!team) return null;
 
-  const memberCount = team.members?.length || 0;
+  const teamMembersList = teamMembers?.filter(tm => tm.team_id === team.id) || [];
+  const memberCount = teamMembersList.length;
   const totalMembers = memberCount + 1; // +1 for leader
 
   const handleDelete = () => {
@@ -66,7 +67,7 @@ export function DeleteTeamDialog({ team, isOpen, onClose }: DeleteTeamDialogProp
           <div className="flex items-start gap-3 mb-3">
             <div className="relative">
               <Avatar className="w-12 h-12 border-2 border-amber-500/50 rounded-xl">
-                <AvatarImage src={team.leader?.profile_image_url || ""} className="rounded-xl object-cover" />
+                <AvatarImage src={team.leader?.profile_image_url || undefined} className="rounded-xl object-cover" />
                 <AvatarFallback className="bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-900/30 dark:to-amber-800/30 rounded-xl text-amber-900 dark:text-amber-100 font-semibold">
                   {getInitials(team.leader?.name || "?")}
                 </AvatarFallback>
@@ -100,16 +101,9 @@ export function DeleteTeamDialog({ team, isOpen, onClose }: DeleteTeamDialogProp
             <div className="mt-3 pt-3 border-t">
               <p className="text-sm font-medium text-muted-foreground mb-2">Team Members:</p>
               <div className="flex flex-wrap gap-2">
-                {team.members?.slice(0, 5).map((member) => (
-                  <Badge key={member.id} variant="secondary" className="text-xs">
-                    {member.staff?.name || "Unknown"}
-                  </Badge>
-                ))}
-                {memberCount > 5 && (
-                  <Badge variant="outline" className="text-xs">
-                    +{memberCount - 5} more
-                  </Badge>
-                )}
+                <Badge variant="secondary" className="text-xs">
+                  {memberCount} {memberCount === 1 ? 'member' : 'members'}
+                </Badge>
               </div>
             </div>
           )}

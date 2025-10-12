@@ -30,12 +30,11 @@ import {
   Trash2,
   Search
 } from "lucide-react";
-import { useOfflineStaff } from "@/hooks/use-offline-staff";
+import { useStaff } from "@/hooks/use-staff";
 import { toast } from "sonner";
 import { StaffCard } from "./staff-card";
 import { StaffCardSkeleton } from "./staff-card-skeleton";
 import { StaffSearchBar } from "./staff-search-bar";
-import { SyncStatusIndicator } from "@/components/ui/sync-status-indicator";
 import { useMemo } from "react";
 
 // Define Employee interface locally
@@ -63,16 +62,14 @@ export function EmployeeFormOptimized() {
     deleteStaff,
     isCreating,
     isUpdating,
-    isDeleting,
-    
-    isOnline
-  } = useOfflineStaff();
+    isDeleting
+  } = useStaff();
 
   // Transform offline staff to match expected interface
   const employees = staff.map(s => ({
     id: s.id,
     name: s.name,
-    employeeId: s.id, // Use id as employeeId for now
+    employeeId: s.employee_id || s.id, // Use employee_id if available, fallback to id
     email: s.email,
     role: s.role,
     department: s.department,
@@ -186,7 +183,7 @@ export function EmployeeFormOptimized() {
       employeeName: employee.name,
       employeeId: employee.employeeId,
       email: employee.email,
-      password: "", // Don't pre-fill password for security
+      password: "", // Empty for security - user can choose to update
       role: employee.role,
       department: employee.department,
       branch: employee.branch || "",
@@ -210,6 +207,7 @@ export function EmployeeFormOptimized() {
       phone: formData.phone,
       profileImage: profileImage || undefined,
       oldProfileImageUrl: editingEmployee.profileImage || undefined,
+      password: formData.password || undefined, // Include password if provided
     });
 
     // Reset after submission
@@ -290,11 +288,9 @@ export function EmployeeFormOptimized() {
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
               Employee Management
             </h1>
-            <SyncStatusIndicator showDownloadButton={true} />
           </div>
           <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
             Manage your team members and their accounts
-            {!isOnline && " (Working offline)"}
           </p>
         </div>
 
@@ -409,15 +405,18 @@ export function EmployeeFormOptimized() {
                     </div>
 
                     <div className="space-y-1.5 sm:space-y-2">
-                      <Label htmlFor="password" className="text-sm">Password *</Label>
+                      <Label htmlFor="password" className="text-sm">
+                        {isEditMode ? "New Password (leave empty to keep current)" : "Password *"}
+                      </Label>
                       <div className="relative">
                         <Input
                           id="password"
                           type={showPassword ? "text" : "password"}
-                          placeholder="Enter password"
+                          placeholder={isEditMode ? "Enter new password (optional)" : "Enter password"}
                           value={formData.password}
                           onChange={(e) => handleInputChange("password", e.target.value)}
                           className="pr-10"
+                          required={!isEditMode}
                         />
                         <Button
                           type="button"
@@ -429,6 +428,11 @@ export function EmployeeFormOptimized() {
                           {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </Button>
                       </div>
+                      {isEditMode && (
+                        <p className="text-xs text-muted-foreground">
+                          💡 Leave empty to keep the current password unchanged
+                        </p>
+                      )}
                     </div>
                   </div>
 

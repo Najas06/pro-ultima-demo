@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useUIStore } from "@/stores/ui-store";
 import { Team, Staff } from "@/types";
+import { useTeams } from "@/hooks/use-teams";
 import { IconDots, IconEdit, IconTrash, IconUsers, IconUserCheck, IconPlus } from "@tabler/icons-react";
 
 // Mock data for demonstration
@@ -148,6 +149,7 @@ const formatDate = (dateString: string) => {
 
 export function TeamsGrid() {
   const { openTeamDialog } = useUIStore();
+  const { teamMembers } = useTeams();
 
   const handleEdit = (teamId: string) => {
     openTeamDialog("edit", teamId);
@@ -262,37 +264,18 @@ export function TeamsGrid() {
                       Team Members
                     </div>
                     <Badge variant="secondary" className="text-xs">
-                      {team.members?.length || 0}
+                      {teamMembers?.filter(tm => tm.team_id === team.id).length || 0}
                     </Badge>
                   </div>
                   
                   <div className="space-y-2">
-                    {team.members?.slice(0, 3).map((member) => (
-                      <div key={member.id} className="flex items-center gap-3">
-                        <Avatar className="h-6 w-6">
-                          <AvatarFallback className="text-xs">
-                            {getInitials(member.staff?.name || "Unknown")}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm truncate">
-                            {member.staff?.name || "Unknown Member"}
-                          </p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {member.staff?.role || "Unknown Role"}
-                          </p>
-                        </div>
-                        {member.staff_id === team.leader_id && (
-                          <Badge variant="outline" className="text-xs">
-                            Captain
-                          </Badge>
-                        )}
-                      </div>
-                    ))}
+                    <Badge variant="secondary" className="text-xs">
+                      {teamMembers?.filter(tm => tm.team_id === team.id).length || 0} team members
+                    </Badge>
                     
-                    {team.members && team.members.length > 3 && (
+                    {teamMembers?.filter(tm => tm.team_id === team.id).length > 3 && (
                       <p className="text-xs text-muted-foreground">
-                        +{team.members.length - 3} more member(s)
+                        +{(teamMembers?.filter(tm => tm.team_id === team.id).length || 0) - 3} more member(s)
                       </p>
                     )}
                   </div>

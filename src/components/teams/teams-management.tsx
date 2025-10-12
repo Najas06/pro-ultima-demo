@@ -7,13 +7,12 @@ import {
   Users, 
   Search,
 } from "lucide-react";
-import { useOfflineTeams } from "@/hooks/use-offline-teams";
+import { useTeams } from "@/hooks/use-teams";
 import { TeamCard } from "./team-card";
 import { TeamCardSkeleton } from "./team-card-skeleton";
 import { TeamFormDialog } from "./team-form-dialog";
 import { EditTeamDialog } from "./edit-team-dialog";
 import { DeleteTeamDialog } from "./delete-team-dialog";
-import { SyncStatusIndicator } from "@/components/ui/sync-status-indicator";
 import type { Team } from "@/types";
 
 export function TeamsManagement() {
@@ -28,13 +27,8 @@ export function TeamsManagement() {
     deleteTeam,
     isCreating,
     isUpdating,
-    isDeleting,
-    syncStatus,
-    isOnline,
-    pendingOperations,
-    downloadData,
-    syncAll,
-  } = useOfflineTeams();
+    isDeleting
+  } = useTeams();
 
   // ============================================
   // LOCAL STATE
@@ -54,7 +48,6 @@ export function TeamsManagement() {
       const matchesSearch =
         searchQuery === "" ||
         team.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        team.leader?.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         team.branch?.toLowerCase().includes(searchQuery.toLowerCase());
 
       return matchesSearch;
@@ -131,11 +124,9 @@ export function TeamsManagement() {
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
               Teams Management
             </h1>
-            <SyncStatusIndicator showDownloadButton={true} />
           </div>
           <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
             Create and manage your teams with leaders and members
-            {!isOnline && " (Working offline)"}
           </p>
         </div>
 
