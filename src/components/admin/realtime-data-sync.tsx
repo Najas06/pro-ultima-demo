@@ -25,6 +25,9 @@ export function RealtimeDataSync() {
       queryClient.invalidateQueries({ queryKey: ['staff'] });
       queryClient.invalidateQueries({ queryKey: ['teams'] });
       queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      queryClient.invalidateQueries({ queryKey: ['cash-transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['task-proofs'] });
+      queryClient.invalidateQueries({ queryKey: ['task-proofs-pending-count'] });
     };
 
     // 1. Supabase Realtime (cross-device, cross-browser, different machines)
@@ -107,6 +110,30 @@ export function RealtimeDataSync() {
       )
       .subscribe();
 
+    const cashTransactionsChannel = supabase
+      .channel('admin-cash-transactions-sync')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'cash_transactions' },
+        (payload) => {
+          console.log('📡 Supabase: Cash transaction changed', payload.eventType);
+          handleUpdate();
+        }
+      )
+      .subscribe();
+
+    const taskProofsChannel = supabase
+      .channel('admin-task-proofs-sync')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'task_update_proofs' },
+        (payload) => {
+          console.log('📡 Supabase: Task proof changed', payload.eventType);
+          handleUpdate();
+        }
+      )
+      .subscribe();
+
     // 2. Custom Event Listener (same browser, multiple tabs - primary method)
     const handleCustomUpdate = (e: Event) => {
       console.log('📲 Cross-tab update via custom event');
@@ -131,6 +158,8 @@ export function RealtimeDataSync() {
       supabase.removeChannel(teamsChannel);
       supabase.removeChannel(attendanceChannel);
       supabase.removeChannel(delegationsChannel);
+      supabase.removeChannel(cashTransactionsChannel);
+      supabase.removeChannel(taskProofsChannel);
       window.removeEventListener('dataUpdated', handleCustomUpdate);
       window.removeEventListener('storage', handleStorageUpdate);
     };

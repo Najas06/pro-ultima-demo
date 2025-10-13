@@ -9,6 +9,7 @@ import {
   IconSettings,
   IconClock,
   IconLogout,
+  IconCash,
 } from "@tabler/icons-react"
 import { useAuth } from "@/contexts/auth-context"
 import { useAttendance } from "@/hooks/use-attendance"
@@ -67,6 +68,11 @@ export function StaffSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
         title: "My Tasks",
         url: "/staff/tasks",
         icon: IconListDetails,
+      },
+      {
+        title: "Cash Book",
+        url: "/staff/cashbook",
+        icon: IconCash,
       },
     ],
     navSecondary: [

@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import { useAuth } from '@/contexts/auth-context';
 import { useTasks } from '@/hooks/use-tasks';
+import { useTaskProofs } from '@/hooks/use-task-proofs';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -13,8 +15,10 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Edit, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { TaskProofUpload } from './task-proof-upload';
 import type { Task, TaskStatus } from '@/types';
 
 interface UpdateTaskDialogProps {
@@ -22,21 +26,46 @@ interface UpdateTaskDialogProps {
 }
 
 export function UpdateTaskDialog({ task }: UpdateTaskDialogProps) {
+  const { user } = useAuth();
   const { updateTask } = useTasks();
+  const { uploadProofImage, createProof } = useTaskProofs();
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<TaskStatus>(task.status);
+  const [withProof, setWithProof] = useState(false);
+  const [proofImage, setProofImage] = useState<File | null>(null);
+  const [proofNotes, setProofNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingProof, setIsUploadingProof] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (status === task.status) {
+    if (status === task.status && !withProof) {
       toast.info('No changes to save');
+      return;
+    }
+
+    if (withProof && !proofImage) {
+      toast.error('Please upload a proof image');
+      return;
+    }
+
+    if (!user?.staffId) {
+      toast.error('User not authenticated');
       return;
     }
 
     setIsSubmitting(true);
     try {
+      // Upload proof image if provided
+      let proofImageUrl = '';
+      if (withProof && proofImage) {
+        setIsUploadingProof(true);
+        proofImageUrl = await uploadProofImage(proofImage, task.id);
+        setIsUploadingProof(false);
+      }
+
+      // Update task status
       await updateTask({
         id: task.id,
         title: task.title,
@@ -51,12 +80,31 @@ export function UpdateTaskDialog({ task }: UpdateTaskDialogProps) {
         assigned_staff_ids: task.assigned_staff_ids,
         assigned_team_ids: task.assigned_team_ids,
       });
+
+      // Create proof record if image was uploaded
+      if (withProof && proofImageUrl) {
+        createProof({
+          task_id: task.id,
+          staff_id: user.staffId,
+          status,
+          proof_image_url: proofImageUrl,
+          notes: proofNotes || undefined,
+        });
+      }
       
       // Trigger real-time update event
       window.dispatchEvent(new CustomEvent('dataUpdated'));
       
-      toast.success('Task status updated successfully! Changes will appear in real-time.');
+      const message = withProof 
+        ? 'Task updated with proof! Awaiting admin verification.'
+        : 'Task status updated successfully!';
+      toast.success(message);
       setOpen(false);
+      
+      // Reset form
+      setWithProof(false);
+      setProofImage(null);
+      setProofNotes('');
     } catch (error) {
       console.error('Error updating task:', error);
       toast.error('Failed to update task status');
@@ -73,7 +121,7 @@ export function UpdateTaskDialog({ task }: UpdateTaskDialogProps) {
           Update
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Update Task Status</DialogTitle>
           <DialogDescription>
@@ -95,6 +143,30 @@ export function UpdateTaskDialog({ task }: UpdateTaskDialogProps) {
               </SelectContent>
             </Select>
           </div>
+
+          {/* Add proof option */}
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="with-proof"
+              checked={withProof}
+              onCheckedChange={(checked) => setWithProof(checked as boolean)}
+            />
+            <Label
+              htmlFor="with-proof"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+            >
+              Upload proof image for this update
+            </Label>
+          </div>
+
+          {/* Proof upload section */}
+          {withProof && (
+            <TaskProofUpload
+              onImageSelect={setProofImage}
+              onNotesChange={setProofNotes}
+              isUploading={isUploadingProof}
+            />
+          )}
 
           {/* Show current details */}
           <div className="rounded-lg bg-gray-50 p-4 space-y-2 text-sm">
@@ -123,8 +195,8 @@ export function UpdateTaskDialog({ task }: UpdateTaskDialogProps) {
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting || status === task.status}>
-              {isSubmitting ? (
+            <Button type="submit" disabled={isSubmitting || (status === task.status && !withProof) || (withProof && !proofImage)}>
+              {isSubmitting || isUploadingProof ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Updating...

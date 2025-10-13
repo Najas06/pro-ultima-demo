@@ -10,6 +10,7 @@ import {
   IconSearch,
   IconSettings,
   IconUsers,
+  IconCash,
 } from "@tabler/icons-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -57,6 +58,11 @@ const data = {
       title: "Reports",
       url: "/admin/reports",
       icon: IconChartBar,
+    },
+    {
+      title: "Cash Book",
+      url: "/admin/cashbook",
+      icon: IconCash,
     },
   ],
   navClouds: [
