@@ -43,9 +43,9 @@ import {
   Eye,
   Edit as EditIcon,
 } from "lucide-react";
-import { useOfflineTasks } from "@/hooks/use-offline-tasks";
-import { useOfflineStaff } from "@/hooks/use-offline-staff";
-import { useOfflineTeams } from "@/hooks/use-offline-teams";
+import { useTasks } from "@/hooks/use-tasks";
+import { useStaff } from "@/hooks/use-staff";
+import { useTeams } from "@/hooks/use-teams";
 import type { Task, TaskRepeatConfig, Staff, TaskStatus, TaskPriority } from "@/types";
 
 interface TaskDetailsDialogProps {
@@ -61,9 +61,9 @@ export function TaskDetailsDialog({
   onOpenChange,
   onDelete,
 }: TaskDetailsDialogProps) {
-  const { updateTask, isUpdating, deleteTask, isDeleting } = useOfflineTasks();
-  const { staff } = useOfflineStaff();
-  const { teams } = useOfflineTeams();
+  const { updateTask, isUpdating, deleteTask, isDeleting } = useTasks();
+  const { staff } = useStaff();
+  const { teams, teamMembers } = useTeams();
 
   // Transform staff to match expected interface
   const employees = staff.map(s => ({
@@ -90,9 +90,8 @@ export function TaskDetailsDialog({
     status: "todo" as TaskStatus,
     priority: "medium" as TaskPriority,
     allocation_mode: "individual" as "individual" | "team",
-    assignee_id: "",
-    team_id: "",
-    member_ids: [] as string[],
+    assigned_staff_ids: [] as string[],
+    assigned_team_ids: [] as string[],
     due_date: undefined as Date | undefined,
     is_repeated: false,
   });
@@ -106,10 +105,12 @@ export function TaskDetailsDialog({
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("17:00");
 
-  // Get team members from selected team
-  const selectedTeamData = teams.find(t => t.id === formData.team_id);
-  const teamMembersList = selectedTeamData?.members?.map(member => member.staff).filter((staff): staff is Staff => !!staff) || [];
-  const loadingTeamMembers = false; // No loading state needed for offline data
+  // Get team members from selected teams
+  const selectedTeamMemberIds = teamMembers
+    ?.filter(tm => formData.assigned_team_ids.includes(tm.team_id))
+    .map(tm => tm.staff_id) || [];
+  const teamMembersList = staff.filter(s => selectedTeamMemberIds.includes(s.id));
+  const loadingTeamMembers = false;
 
   // Available members
   const availableMembers = teamMembersList;
@@ -123,9 +124,8 @@ export function TaskDetailsDialog({
         status: task.status,
         priority: task.priority,
         allocation_mode: task.allocation_mode,
-        assignee_id: task.assignee_id || "",
-        team_id: task.team_id || "",
-        member_ids: task.assigned_staff?.map(a => a.staff_id) || [],
+        assigned_staff_ids: task.assigned_staff_ids || [],
+        assigned_team_ids: task.assigned_team_ids || [],
         due_date: task.due_date ? new Date(task.due_date) : undefined,
         is_repeated: task.is_repeated,
       });
@@ -145,16 +145,16 @@ export function TaskDetailsDialog({
     }
   }, [task, isOpen]);
 
-  const handleInputChange = (field: string, value: string | boolean | Date | undefined) => {
+  const handleInputChange = (field: string, value: string | boolean | Date | string[] | undefined) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   const toggleMember = (staffId: string) => {
     setFormData(prev => ({
       ...prev,
-      member_ids: prev.member_ids.includes(staffId)
-        ? prev.member_ids.filter(id => id !== staffId)
-        : [...prev.member_ids, staffId],
+      assigned_staff_ids: prev.assigned_staff_ids.includes(staffId)
+        ? prev.assigned_staff_ids.filter(id => id !== staffId)
+        : [...prev.assigned_staff_ids, staffId],
     }));
   };
 
@@ -195,7 +195,7 @@ export function TaskDetailsDialog({
       due_date: formData.due_date?.toISOString(),
       start_date: formData.is_repeated ? formData.due_date?.toISOString() : undefined,
       is_repeated: formData.is_repeated,
-      repeat_config: repeatConfig ? (repeatConfig as unknown as Record<string, unknown>) : undefined,
+      repeat_config: repeatConfig,
     });
 
     setIsEditing(false);
@@ -219,9 +219,8 @@ export function TaskDetailsDialog({
         status: task.status,
         priority: task.priority,
         allocation_mode: task.allocation_mode,
-        assignee_id: task.assignee_id || "",
-        team_id: task.team_id || "",
-        member_ids: task.assigned_staff?.map(a => a.staff_id) || [],
+        assigned_staff_ids: task.assigned_staff_ids || [],
+        assigned_team_ids: task.assigned_team_ids || [],
         due_date: task.due_date ? new Date(task.due_date) : undefined,
         is_repeated: task.is_repeated,
       });
@@ -383,31 +382,55 @@ export function TaskDetailsDialog({
             {isEditing ? (
               <>
                 {formData.allocation_mode === "individual" ? (
-                  <Select
-                    value={formData.assignee_id}
-                    onValueChange={(value) => handleInputChange("assignee_id", value)}
-                  >
-                    <SelectTrigger className="h-10">
-                      <SelectValue placeholder="Select staff member" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {employees.map((emp) => (
-                        <SelectItem key={emp.id} value={emp.id}>
-                          <div className="flex items-center gap-2">
-                            <span>{emp.name}</span>
-                            <Badge variant="outline" className="text-xs">
-                              {emp.role}
-                            </Badge>
+                  <div className="space-y-2">
+                    <Select
+                      onValueChange={(value) => {
+                        if (!formData.assigned_staff_ids.includes(value)) {
+                          handleInputChange("assigned_staff_ids", [...formData.assigned_staff_ids, value]);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-10">
+                        <SelectValue placeholder="Select staff member" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {employees.filter(emp => !formData.assigned_staff_ids.includes(emp.id)).map((emp) => (
+                          <SelectItem key={emp.id} value={emp.id}>
+                            <div className="flex items-center gap-2">
+                              <span>{emp.name}</span>
+                              <Badge variant="outline" className="text-xs">
+                                {emp.role}
+                              </Badge>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    
+                    {/* Selected Staff */}
+                    <div className="flex flex-wrap gap-2">
+                      {formData.assigned_staff_ids.map(staffId => {
+                        const staff = employees.find(s => s.id === staffId);
+                        return staff ? (
+                          <div key={staffId} className="flex items-center gap-1 bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">
+                            {staff.name}
+                            <button
+                              type="button"
+                              onClick={() => handleInputChange("assigned_staff_ids", formData.assigned_staff_ids.filter(id => id !== staffId))}
+                              className="ml-1 text-blue-600 hover:text-blue-800"
+                            >
+                              ×
+                            </button>
                           </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                        ) : null;
+                      })}
+                    </div>
+                  </div>
                 ) : (
                   <div className="space-y-3">
                     <Select
-                      value={formData.team_id}
-                      onValueChange={(value) => handleInputChange("team_id", value)}
+                      value={formData.assigned_team_ids[0] || ""}
+                      onValueChange={(value) => handleInputChange("assigned_team_ids", [value])}
                     >
                       <SelectTrigger className="h-10">
                         <SelectValue placeholder="Select team" />
@@ -422,7 +445,7 @@ export function TaskDetailsDialog({
                     </Select>
 
                     {/* Team Members Selection */}
-                    {formData.team_id && (
+                    {formData.assigned_team_ids.length > 0 && (
                       <div className="space-y-3">
                         <Label className="text-sm font-medium flex items-center gap-2">
                           <UserPlus className="w-4 h-4 text-blue-500" />
@@ -442,7 +465,7 @@ export function TaskDetailsDialog({
                               >
                                 <Checkbox
                                   id={`member-${emp.id}`}
-                                  checked={formData.member_ids.includes(emp.id)}
+                                  checked={formData.assigned_staff_ids.includes(emp.id)}
                                   onCheckedChange={() => toggleMember(emp.id)}
                                 />
                                 <label
@@ -467,12 +490,12 @@ export function TaskDetailsDialog({
                         )}
 
                         {/* Selected Members Summary */}
-                        {formData.member_ids.length > 0 && (
+                        {formData.assigned_staff_ids.length > 0 && (
                           <div className="flex flex-wrap gap-2 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-100 dark:border-blue-900/30">
                             <p className="text-xs font-medium text-blue-900 dark:text-blue-100 w-full mb-1">
-                              Selected: {formData.member_ids.length} member{formData.member_ids.length !== 1 ? 's' : ''}
+                              Selected: {formData.assigned_staff_ids.length} member{formData.assigned_staff_ids.length !== 1 ? 's' : ''}
                             </p>
-                            {formData.member_ids.map((memberId) => {
+                            {formData.assigned_staff_ids.map((memberId) => {
                               const member = employees.find(e => e.id === memberId);
                               return member ? (
                                 <Badge key={memberId} variant="secondary" className="text-xs">
@@ -492,20 +515,25 @@ export function TaskDetailsDialog({
                 {task.allocation_mode === "individual" ? (
                   <>
                     <User className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">{task.assignee?.name || "Unassigned"}</span>
-                    {task.assignee && (
-                      <Badge variant="outline" className="text-xs ml-auto">
-                        {task.assignee.role}
-                      </Badge>
-                    )}
+                    <span className="font-medium">
+                      {task.assigned_staff_ids?.length > 0 
+                        ? `${task.assigned_staff_ids.length} staff member${task.assigned_staff_ids.length > 1 ? 's' : ''}`
+                        : "Unassigned"
+                      }
+                    </span>
                   </>
                 ) : (
                   <>
                     <Users className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">{task.team?.name || "No team"}</span>
-                    {task.assigned_staff && task.assigned_staff.length > 0 && (
+                    <span className="font-medium">
+                      {task.assigned_team_ids?.length > 0 
+                        ? `${task.assigned_team_ids.length} team${task.assigned_team_ids.length > 1 ? 's' : ''}`
+                        : "No teams assigned"
+                      }
+                    </span>
+                    {task.assigned_staff_ids && task.assigned_staff_ids.length > 0 && (
                       <Badge variant="secondary" className="text-xs ml-auto">
-                        {task.assigned_staff.length} members
+                        {task.assigned_staff_ids.length} members
                       </Badge>
                     )}
                   </>

@@ -28,6 +28,7 @@ import {
   UserCheck
 } from "lucide-react";
 import type { Team } from "@/types";
+import { useTeams } from "@/hooks/use-teams";
 
 interface TeamCardProps {
   team: Team;
@@ -51,8 +52,13 @@ const formatBranch = (branch?: string) => {
 };
 
 export function TeamCard({ team, onEdit, onDelete, isDeleting }: TeamCardProps) {
-  const memberCount = team.members?.length || 0;
+  const { teamMembers } = useTeams();
+  const teamMembersList = teamMembers?.filter(tm => tm.team_id === team.id) || [];
+  const memberCount = teamMembersList.length;
   const totalMembers = memberCount + 1; // +1 for leader
+  
+  // Create members array with staff data for compatibility
+  const membersWithStaff = teamMembersList.slice(0, 5);
 
   return (
     <Card className="group relative overflow-hidden transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 border-2 hover:border-primary/20">
@@ -110,7 +116,7 @@ export function TeamCard({ team, onEdit, onDelete, isDeleting }: TeamCardProps) 
         <div className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-amber-50/50 to-transparent dark:from-amber-950/20 dark:to-transparent border border-amber-100/50 dark:border-amber-900/30">
           <div className="relative">
             <Avatar className="w-10 h-10 sm:w-12 sm:h-12 border-2 border-amber-500/50 rounded-xl">
-              <AvatarImage src={team.leader?.profile_image_url || ""} className="rounded-xl object-cover" />
+              <AvatarImage src={team.leader?.profile_image_url || undefined} className="rounded-xl object-cover" />
               <AvatarFallback className="bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-900/30 dark:to-amber-800/30 rounded-xl text-amber-900 dark:text-amber-100 font-semibold text-sm">
                 {getInitials(team.leader?.name || "?")}
               </AvatarFallback>
@@ -167,20 +173,12 @@ export function TeamCard({ team, onEdit, onDelete, isDeleting }: TeamCardProps) 
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {team.members?.slice(0, 5).map((member) => (
-                <Badge 
-                  key={member.id} 
-                  variant="secondary" 
-                  className="text-xs py-1 px-2"
-                >
-                  {member.staff?.name || "Unknown"}
-                </Badge>
-              ))}
-              {memberCount > 5 && (
-                <Badge variant="outline" className="text-xs py-1 px-2">
-                  +{memberCount - 5} more
-                </Badge>
-              )}
+              <Badge 
+                variant="secondary" 
+                className="text-xs py-1 px-2"
+              >
+                {memberCount} {memberCount === 1 ? 'member' : 'members'}
+              </Badge>
             </div>
           </div>
         )}

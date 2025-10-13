@@ -4,16 +4,13 @@ import { use, useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { ReactFlow, Background, Controls, Node, Edge, BackgroundVariant, Panel, ReactFlowProvider } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useOfflineTasks } from "@/hooks/use-offline-tasks";
+import { useTasks } from "@/hooks/use-tasks";
 import TaskDiagramNode from "@/components/tasks/task-diagram-node";
 import MemberNode from "@/components/tasks/member-node";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AppSidebar } from "@/components/app-sidebar";
-import { SiteHeader } from "@/components/site-header";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { useQueryClient } from "@tanstack/react-query";
 
 export const dynamic = 'force-dynamic';
@@ -31,7 +28,7 @@ export default function TaskDiagramPage({ params }: PageProps) {
   const router = useRouter();
   const resolvedParams = use(params);
   const queryClient = useQueryClient();
-  const { tasks, isLoading } = useOfflineTasks();
+  const { tasks, isLoading } = useTasks();
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -61,6 +58,15 @@ export default function TaskDiagramPage({ params }: PageProps) {
     const newNodes: Node[] = [];
     const newEdges: Edge[] = [];
 
+    // Improved positioning constants
+    const TASK_X = 400; // Center task node
+    const TASK_Y = 100;
+    const TEAM_Y = 350; // Below task
+    const MEMBER_START_Y = 600;
+    const MEMBER_SPACING_X = 300;
+    const MEMBER_SPACING_Y = 180;
+    const MEMBERS_PER_ROW = 3;
+
     // Build task info schema
     const taskSchema = [
       { title: "Status", value: task.status.toUpperCase(), handleId: undefined },
@@ -69,11 +75,11 @@ export default function TaskDiagramPage({ params }: PageProps) {
       { title: "Allocation", value: task.allocation_mode === 'individual' ? 'Individual' : 'Team', handleId: "allocation" },
     ];
 
-    // Task node
+    // Task node - centered at top
     newNodes.push({
       id: "task",
       type: "taskNode",
-      position: { x: 50, y: 50 },
+      position: { x: TASK_X, y: TASK_Y },
       data: {
         label: task.title,
         schema: taskSchema,
@@ -81,21 +87,19 @@ export default function TaskDiagramPage({ params }: PageProps) {
       },
     });
 
-    if (task.allocation_mode === 'team' && task.team) {
-      // Team node
+    if (task.allocation_mode === 'team' && task.assigned_team_ids?.length > 0) {
+      // Team node - centered below task
       const teamSchema = [
-        { title: "Team Name", value: task.team.name, handleId: undefined },
-        { title: "Branch", value: task.team.branch || "Not set", handleId: undefined },
-        { title: "Leader", value: task.team.leader?.name || "Not assigned", handleId: undefined },
-        { title: "Members", value: `${task.assigned_staff?.length || 0} members`, handleId: "team-members" },
+        { title: "Teams Assigned", value: `${task.assigned_team_ids.length} team${task.assigned_team_ids.length > 1 ? 's' : ''}`, handleId: undefined },
+        { title: "Staff Members", value: `${task.assigned_staff_ids?.length || 0} members`, handleId: "team-members" },
       ];
 
       newNodes.push({
         id: "team",
         type: "taskNode",
-        position: { x: 450, y: 50 },
+        position: { x: TASK_X, y: TEAM_Y },
         data: {
-          label: `Team: ${task.team.name}`,
+          label: `Teams: ${task.assigned_team_ids.length}`,
           schema: teamSchema,
           nodeType: 'team',
         },
@@ -112,7 +116,7 @@ export default function TaskDiagramPage({ params }: PageProps) {
         style: { stroke: '#a855f7', strokeWidth: 2 },
       });
 
-      // Add team members
+      // Add team members in grid layout
       if (task.assigned_staff && task.assigned_staff.length > 0) {
         task.assigned_staff.forEach((assignment, index) => {
           if (assignment.staff) {
@@ -122,12 +126,16 @@ export default function TaskDiagramPage({ params }: PageProps) {
               { title: "Department", value: assignment.staff.department || "Not set" },
             ];
 
-            const yPosition = 50 + (index * 180);
+            // Calculate grid position
+            const row = Math.floor(index / MEMBERS_PER_ROW);
+            const col = index % MEMBERS_PER_ROW;
+            const memberX = TASK_X - (MEMBER_SPACING_X * (MEMBERS_PER_ROW - 1) / 2) + (col * MEMBER_SPACING_X);
+            const memberY = MEMBER_START_Y + (row * MEMBER_SPACING_Y);
 
             newNodes.push({
               id: `member-${assignment.staff.id}`,
               type: "memberNode",
-              position: { x: 850, y: yPosition },
+              position: { x: memberX, y: memberY },
               data: {
                 label: assignment.staff.name,
                 schema: memberSchema,
@@ -147,33 +155,40 @@ export default function TaskDiagramPage({ params }: PageProps) {
           }
         });
       }
-    } else if (task.allocation_mode === 'individual' && task.assignee) {
-      // Individual assignee node
-      const memberSchema = [
-        { title: "Email", value: task.assignee.email || "Not set" },
-        { title: "Role", value: task.assignee.role || "Not set" },
-        { title: "Department", value: task.assignee.department || "Not set" },
-      ];
+    } else if (task.allocation_mode === 'individual' && task.assigned_staff_ids?.length > 0) {
+      // Individual assignee nodes in grid layout
+      task.assigned_staff_ids.forEach((staffId: string, index: number) => {
+        const memberSchema = [
+          { title: "Staff ID", value: staffId },
+          { title: "Assignment", value: `Staff member ${index + 1}` },
+        ];
 
-      newNodes.push({
-        id: `assignee-${task.assignee.id}`,
-        type: "memberNode",
-        position: { x: 450, y: 50 },
-        data: {
-          label: task.assignee.name,
-          schema: memberSchema,
-        },
-      });
+        // Calculate grid position for individual assignments
+        const row = Math.floor(index / MEMBERS_PER_ROW);
+        const col = index % MEMBERS_PER_ROW;
+        const memberX = TASK_X - (MEMBER_SPACING_X * (MEMBERS_PER_ROW - 1) / 2) + (col * MEMBER_SPACING_X);
+        const memberY = MEMBER_START_Y + (row * MEMBER_SPACING_Y);
 
-      // Edge from task to assignee
-      newEdges.push({
-        id: "task-assignee",
-        source: "task",
-        sourceHandle: "allocation",
-        target: `assignee-${task.assignee.id}`,
-        targetHandle: "member-input",
-        animated: true,
-        style: { stroke: '#22c55e', strokeWidth: 2 },
+        newNodes.push({
+          id: `assignee-${staffId}`,
+          type: "memberNode",
+          position: { x: memberX, y: memberY },
+          data: {
+            label: `Staff: ${staffId.slice(0, 8)}`,
+            schema: memberSchema,
+          },
+        });
+
+        // Edge from task to assignee
+        newEdges.push({
+          id: `task-assignee-${staffId}`,
+          source: "task",
+          sourceHandle: "allocation",
+          target: `assignee-${staffId}`,
+          targetHandle: "member-input",
+          animated: true,
+          style: { stroke: '#22c55e', strokeWidth: 2 },
+        });
       });
     }
 
@@ -210,60 +225,34 @@ export default function TaskDiagramPage({ params }: PageProps) {
   // Show loading state until data is initialized
   if (!isInitialized || isLoading) {
     return (
-      <SidebarProvider
-        style={
-          {
-            "--sidebar-width": "calc(var(--spacing) * 72)",
-            "--header-height": "calc(var(--spacing) * 12)",
-          } as React.CSSProperties
-        }
-      >
-        <AppSidebar variant="inset" />
-        <SidebarInset>
-          <SiteHeader />
-          <div className="flex h-[calc(100vh-var(--header-height))] items-center justify-center">
-            <div className="text-center">
-              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-              <p className="text-muted-foreground">Loading task diagram...</p>
-            </div>
-          </div>
-        </SidebarInset>
-      </SidebarProvider>
+      <div className="flex h-[calc(100vh-var(--header-height))] items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading task diagram...</p>
+        </div>
+      </div>
     );
   }
 
   // Show not found only after data is loaded
   if (isInitialized && !task) {
     return (
-      <SidebarProvider
-        style={
-          {
-            "--sidebar-width": "calc(var(--spacing) * 72)",
-            "--header-height": "calc(var(--spacing) * 12)",
-          } as React.CSSProperties
-        }
-      >
-        <AppSidebar variant="inset" />
-        <SidebarInset>
-          <SiteHeader />
-          <div className="flex h-[calc(100vh-var(--header-height))] items-center justify-center">
-            <Card className="w-full max-w-md">
-              <CardHeader>
-                <CardTitle>Task Not Found</CardTitle>
-                <CardDescription>
-                  The task you're looking for doesn't exist or has been deleted.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button onClick={() => router.push("/admin/tasks")} className="w-full">
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Back to Tasks
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        </SidebarInset>
-      </SidebarProvider>
+      <div className="flex h-[calc(100vh-var(--header-height))] items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Task Not Found</CardTitle>
+            <CardDescription>
+              The task you&apos;re looking for doesn&apos;t exist or has been deleted.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => router.push("/admin/tasks")} className="w-full">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Tasks
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
@@ -271,76 +260,63 @@ export default function TaskDiagramPage({ params }: PageProps) {
   if (!task) return null;
 
   return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
-          "--header-height": "calc(var(--spacing) * 12)",
-        } as React.CSSProperties
-      }
-    >
-      <AppSidebar variant="inset" />
-      <SidebarInset>
-        <SiteHeader />
-        <div className="flex flex-1 flex-col h-[calc(100vh-var(--header-height))]">
-          <ReactFlowProvider>
-            <ReactFlow
-              nodes={nodes}
-              edges={edges}
-              nodeTypes={nodeTypes}
-              fitView
-              minZoom={0.5}
-              maxZoom={1.5}
-              defaultEdgeOptions={{
-                type: 'smoothstep',
-              }}
-            >
-              <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
-              <Controls />
-              
-              <Panel position="top-left" className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border rounded-lg shadow-lg p-4 m-4">
-                <div className="flex items-center gap-4 mb-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => router.push("/admin/tasks")}
-                  >
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Back
-                  </Button>
-                  <div>
-                    <h2 className="text-lg font-semibold">{task.title}</h2>
-                    <p className="text-sm text-muted-foreground">Task Assignment Diagram</p>
-                  </div>
-                </div>
-                
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant={task.status === 'completed' ? 'default' : 'secondary'}>
-                    {task.status}
-                  </Badge>
-                  <Badge variant={
-                    task.priority === 'urgent' ? 'destructive' :
-                    task.priority === 'high' ? 'default' :
-                    'secondary'
-                  }>
-                    {task.priority}
-                  </Badge>
-                  <Badge variant="outline">
-                    {task.allocation_mode === 'individual' ? 'Individual' : 'Team'}
-                  </Badge>
-                </div>
-                
-                {task.description && (
-                  <p className="text-sm text-muted-foreground mt-4 max-w-md">
-                    {task.description}
-                  </p>
-                )}
-              </Panel>
-            </ReactFlow>
-          </ReactFlowProvider>
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
+    <div className="flex flex-1 flex-col h-[calc(100vh-var(--header-height))]">
+      <ReactFlowProvider>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          fitView
+          minZoom={0.5}
+          maxZoom={1.5}
+          defaultEdgeOptions={{
+            type: 'smoothstep',
+          }}
+        >
+          <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
+          <Controls />
+          
+          <Panel position="top-right" className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border rounded-lg shadow-lg p-4 m-4 max-w-sm">
+            <div className="flex items-center gap-4 mb-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push("/admin/tasks")}
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back
+              </Button>
+              <div>
+                <h2 className="text-lg font-semibold">{task.title}</h2>
+                <p className="text-sm text-muted-foreground">Task Assignment Diagram</p>
+              </div>
+            </div>
+            
+            <div className="flex flex-wrap gap-2">
+              <Badge variant={task.status === 'completed' ? 'default' : 'secondary'}>
+                {task.status}
+              </Badge>
+              <Badge variant={
+                task.priority === 'urgent' ? 'destructive' :
+                task.priority === 'high' ? 'default' :
+                'secondary'
+              }>
+                {task.priority}
+              </Badge>
+              <Badge variant="outline">
+                {task.allocation_mode === 'individual' ? 'Individual' : 'Team'}
+              </Badge>
+            </div>
+            
+            {task.description && (
+              <p className="text-sm text-muted-foreground mt-4 max-w-md">
+                {task.description}
+              </p>
+            )}
+          </Panel>
+        </ReactFlow>
+      </ReactFlowProvider>
+    </div>
   );
 }
 

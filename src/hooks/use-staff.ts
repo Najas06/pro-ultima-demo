@@ -1,35 +1,29 @@
-"use client";
+'use client';
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
-import {
-  createStaff,
-  updateStaff,
-  deleteStaff,
-  getAllStaff,
-  getStaffById,
-} from "@/lib/actions/staffActions";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { createClient } from '@/lib/supabase/client';
+import { useEffect } from 'react';
+import { toast } from 'sonner';
+import { hashPassword } from '@/lib/auth';
 
-// ============================================
-// TYPES
-// ============================================
-
-export interface Employee {
+interface Staff {
   id: string;
   name: string;
-  employeeId: string;
   email: string;
+  employee_id?: string;
   role: string;
   department: string;
   branch?: string;
   phone?: string;
-  profileImage: string | null;
+  profile_image_url?: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
-interface CreateStaffInput {
-  employeeName: string;
-  employeeId: string;
+interface StaffFormData {
+  name: string;
   email: string;
+  employee_id: string;
   password: string;
   role: string;
   department: string;
@@ -38,253 +32,165 @@ interface CreateStaffInput {
   profileImage?: string;
 }
 
-interface UpdateStaffInput extends CreateStaffInput {
+interface StaffUpdateData {
   id: string;
+  name: string;
+  email: string;
+  role: string;
+  department: string;
+  branch?: string;
+  phone?: string;
+  profileImage?: string;
   oldProfileImageUrl?: string;
+  password?: string;
 }
-
-// ============================================
-// CUSTOM HOOK: useStaff
-// ============================================
 
 export function useStaff() {
   const queryClient = useQueryClient();
+  const supabase = createClient();
 
-  // ============================================
-  // QUERY: Fetch All Staff
-  // ============================================
-  const {
-    data: staffData,
-    isLoading,
-    isError,
-    error,
-  } = useQuery({
-    queryKey: ["staff"],
+  // Fetch all staff
+  const { data: staff = [], isLoading, error, refetch } = useQuery<Staff[]>({
+    queryKey: ['staff'],
     queryFn: async () => {
-      const result = await getAllStaff();
-      if (!result.success) {
-        throw new Error(result.error);
-      }
-      return result.data;
+      const { data, error } = await supabase
+        .from('staff')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
     },
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    gcTime: 1000 * 60 * 10, // 10 minutes
+    staleTime: 0, // Instant refetches
+    refetchOnWindowFocus: true,
+    refetchInterval: 1000, // Poll every second as fallback
   });
 
-  const employees = staffData || [];
+  // Real-time subscription
+  useEffect(() => {
+    const channel = supabase
+      .channel('staff-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'staff' },
+        (payload) => {
+          console.log('📡 Staff table changed:', payload);
+          queryClient.invalidateQueries({ queryKey: ['staff'] });
+          window.dispatchEvent(new CustomEvent('dataUpdated'));
+          localStorage.setItem('data-sync-trigger', Date.now().toString());
+        }
+      )
+      .subscribe();
 
-  // ============================================
-  // MUTATION: Create Staff with Optimistic Update
-  // ============================================
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient, supabase]);
+
+  // Create staff mutation
   const createMutation = useMutation({
-    mutationFn: async (data: CreateStaffInput) => {
-      const result = await createStaff({
-        name: data.employeeName,
-        employee_id: data.employeeId,
-        email: data.email,
-        password: data.password,
-        role: data.role,
-        department: data.department,
-        branch: data.branch,
-        phone: data.phone,
-        profileImage: data.profileImage,
-      });
+    mutationFn: async (formData: StaffFormData) => {
+      // Hash password
+      const password_hash = await hashPassword(formData.password);
 
-      if (!result.success) {
-        throw new Error(result.error);
-      }
+      const { data, error } = await supabase
+        .from('staff')
+        .insert({
+          name: formData.name,
+          email: formData.email,
+          employee_id: formData.employee_id,
+          password_hash,
+          role: formData.role,
+          department: formData.department,
+          branch: formData.branch,
+          phone: formData.phone,
+          profile_image_url: formData.profileImage || null,
+        })
+        .select()
+        .single();
 
-      return result.data;
+      if (error) throw error;
+      return data;
     },
-    // OPTIMISTIC UPDATE: Update UI before server responds
-    onMutate: async (newEmployee) => {
-      // Cancel any outgoing refetches to avoid race conditions
-      await queryClient.cancelQueries({ queryKey: ["staff"] });
+    onSuccess: () => {
+      toast.success('Staff member created successfully!');
+      queryClient.invalidateQueries({ queryKey: ['staff'] });
+      window.dispatchEvent(new CustomEvent('dataUpdated'));
+      localStorage.setItem('data-sync-trigger', Date.now().toString());
+    },
+    onError: (error) => {
+      toast.error('Failed to create staff: ' + (error as Error).message);
+    },
+  });
 
-      // Snapshot the previous value for rollback
-      const previousStaff = queryClient.getQueryData<Employee[]>(["staff"]);
-
-      // Optimistically update the cache with temporary data
-      const optimisticEmployee: Employee = {
-        id: `temp-${Date.now()}`,
-        name: newEmployee.employeeName,
-        employeeId: newEmployee.employeeId,
-        email: newEmployee.email,
-        role: newEmployee.role,
-        department: newEmployee.department,
-        branch: newEmployee.branch,
-        phone: newEmployee.phone,
-        profileImage: newEmployee.profileImage || null,
+  // Update staff mutation
+  const updateMutation = useMutation({
+    mutationFn: async (updateData: StaffUpdateData) => {
+      const updateFields: Record<string, unknown> = {
+        name: updateData.name,
+        email: updateData.email,
+        role: updateData.role,
+        department: updateData.department,
+        branch: updateData.branch,
+        phone: updateData.phone,
+        profile_image_url: updateData.profileImage || null,
+        updated_at: new Date().toISOString(),
       };
 
-      queryClient.setQueryData<Employee[]>(["staff"], (old) =>
-        old ? [optimisticEmployee, ...old] : [optimisticEmployee]
-      );
-
-      // Return context for rollback
-      return { previousStaff };
-    },
-    // ROLLBACK: If server fails, revert to previous state
-    onError: (error, variables, context) => {
-      if (context?.previousStaff) {
-        queryClient.setQueryData(["staff"], context.previousStaff);
+      // Add password hash if password is provided
+      if (updateData.password && updateData.password.trim() !== '') {
+        updateFields.password_hash = await hashPassword(updateData.password);
       }
-      toast.error(`Failed to create employee: ${error.message}`);
+
+      const { data, error } = await supabase
+        .from('staff')
+        .update(updateFields)
+        .eq('id', updateData.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
     },
-    // SUCCESS: Show success message
     onSuccess: () => {
-      toast.success("Employee created successfully!");
+      toast.success('Staff member updated successfully!');
+      queryClient.invalidateQueries({ queryKey: ['staff'] });
+      window.dispatchEvent(new CustomEvent('dataUpdated'));
+      localStorage.setItem('data-sync-trigger', Date.now().toString());
     },
-    // ALWAYS: Refetch to sync with server (eventual consistency)
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["staff"] });
+    onError: (error) => {
+      toast.error('Failed to update staff: ' + (error as Error).message);
     },
   });
 
-  // ============================================
-  // MUTATION: Update Staff with Optimistic Update
-  // ============================================
-  const updateMutation = useMutation({
-    mutationFn: async (data: UpdateStaffInput) => {
-      const result = await updateStaff({
-        id: data.id,
-        name: data.employeeName,
-        employee_id: data.employeeId,
-        email: data.email,
-        role: data.role,
-        department: data.department,
-        branch: data.branch,
-        phone: data.phone,
-        profileImage: data.profileImage,
-        oldProfileImageUrl: data.oldProfileImageUrl,
-      });
-
-      if (!result.success) {
-        throw new Error(result.error);
-      }
-
-      return result.data;
-    },
-    onMutate: async (updatedEmployee) => {
-      await queryClient.cancelQueries({ queryKey: ["staff"] });
-
-      const previousStaff = queryClient.getQueryData<Employee[]>(["staff"]);
-
-      // Optimistically update the specific employee
-      queryClient.setQueryData<Employee[]>(["staff"], (old) =>
-        old?.map((emp) =>
-          emp.id === updatedEmployee.id
-            ? {
-                ...emp,
-                name: updatedEmployee.employeeName,
-                employeeId: updatedEmployee.employeeId,
-                email: updatedEmployee.email,
-                role: updatedEmployee.role,
-                department: updatedEmployee.department,
-                branch: updatedEmployee.branch,
-                phone: updatedEmployee.phone,
-                profileImage: updatedEmployee.profileImage || emp.profileImage,
-              }
-            : emp
-        )
-      );
-
-      return { previousStaff };
-    },
-    onError: (error, variables, context) => {
-      if (context?.previousStaff) {
-        queryClient.setQueryData(["staff"], context.previousStaff);
-      }
-      toast.error(`Failed to update employee: ${error.message}`);
-    },
-    onSuccess: () => {
-      toast.success("Employee updated successfully!");
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["staff"] });
-    },
-  });
-
-  // ============================================
-  // MUTATION: Delete Staff with Optimistic Update
-  // ============================================
+  // Delete staff mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const result = await deleteStaff(id);
-
-      if (!result.success) {
-        throw new Error(result.error);
-      }
-
+      const { error } = await supabase.from('staff').delete().eq('id', id);
+      if (error) throw error;
       return id;
     },
-    onMutate: async (deletedId) => {
-      await queryClient.cancelQueries({ queryKey: ["staff"] });
-
-      const previousStaff = queryClient.getQueryData<Employee[]>(["staff"]);
-
-      // Optimistically remove the employee from the list
-      queryClient.setQueryData<Employee[]>(["staff"], (old) =>
-        old?.filter((emp) => emp.id !== deletedId)
-      );
-
-      return { previousStaff };
-    },
-    onError: (error, variables, context) => {
-      if (context?.previousStaff) {
-        queryClient.setQueryData(["staff"], context.previousStaff);
-      }
-      toast.error(`Failed to delete employee: ${error.message}`);
-    },
     onSuccess: () => {
-      toast.success("Employee deleted successfully!");
+      toast.success('Staff member deleted successfully!');
+      queryClient.invalidateQueries({ queryKey: ['staff'] });
+      window.dispatchEvent(new CustomEvent('dataUpdated'));
+      localStorage.setItem('data-sync-trigger', Date.now().toString());
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["staff"] });
+    onError: (error) => {
+      toast.error('Failed to delete staff: ' + (error as Error).message);
     },
   });
 
-  // ============================================
-  // QUERY: Get Single Staff by ID
-  // ============================================
-  const useStaffById = (id?: string) => {
-    return useQuery({
-      queryKey: ["staff", id],
-      queryFn: async () => {
-        if (!id) return null;
-        const result = await getStaffById(id);
-        if (!result.success) {
-          throw new Error(result.error);
-        }
-        return result.data;
-      },
-      enabled: !!id,
-      staleTime: 1000 * 60 * 5,
-    });
-  };
-
-  // ============================================
-  // RETURN HOOK API
-  // ============================================
   return {
-    // Data
-    employees,
+    staff,
     isLoading,
-    isError,
     error,
-
-    // Mutations
+    refetch,
     createStaff: createMutation.mutate,
     updateStaff: updateMutation.mutate,
     deleteStaff: deleteMutation.mutate,
-
-    // Mutation states
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
-
-    // Utilities
-    useStaffById,
   };
 }
-

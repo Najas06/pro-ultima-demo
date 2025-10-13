@@ -1,52 +1,15 @@
-import { AppSidebar } from "@/components/app-sidebar"
-import { SiteHeader } from "@/components/site-header"
-import {
-  SidebarInset,
-  SidebarProvider,
-} from "@/components/ui/sidebar"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ReportsContent } from "@/components/admin/reports-content"
 
 export const dynamic = 'force-dynamic';
 
 export default function ReportsPage() {
   return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
-          "--header-height": "calc(var(--spacing) * 12)",
-        } as React.CSSProperties
-      }
-    >
-      <AppSidebar variant="inset" />
-      <SidebarInset>
-        <SiteHeader />
-        <div className="flex flex-1 flex-col">
-          <div className="@container/main flex flex-1 flex-col gap-2">
-            <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-              <div className="px-4 lg:px-6">
-                <div className="flex items-center justify-between space-y-2 mb-6">
-                  <h2 className="text-3xl font-bold tracking-tight">Reports</h2>
-                </div>
-                
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Analytics & Reports</CardTitle>
-                    <CardDescription>
-                      View analytics and generate reports for your tasks and teams.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-center py-8 text-muted-foreground">
-                      Reports and analytics interface will be implemented here.
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-          </div>
+    <div className="@container/main flex flex-1 flex-col gap-2">
+      <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+        <div className="px-4 lg:px-6">
+          <ReportsContent />
         </div>
-      </SidebarInset>
-    </SidebarProvider>
+      </div>
+    </div>
   );
 }

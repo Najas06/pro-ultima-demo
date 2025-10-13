@@ -1,169 +1,285 @@
-"use client";
+'use client';
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
-import type { Task, TaskFormData, UpdateTaskFormData, Staff } from "@/types";
-import {
-  createTask,
-  getAllTasks,
-  getTaskById,
-  updateTask,
-  deleteTask,
-  getTeamMembers,
-} from "@/lib/actions/taskActions";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { createClient } from '@/lib/supabase/client';
+import { useEffect } from 'react';
+import { toast } from 'sonner';
+import type { Task, TaskStatus, TaskPriority, TaskRepeatConfig } from '@/types';
+
+interface TaskFormData {
+  title: string;
+  description?: string;
+  allocation_mode: 'individual' | 'team';
+  assigned_staff_ids?: string[];
+  assigned_team_ids?: string[];
+  status: TaskStatus;
+  priority: TaskPriority;
+  due_date?: string;
+  start_date?: string;
+  is_repeated?: boolean;
+  repeat_config?: TaskRepeatConfig;
+  support_files?: string[];
+}
 
 export function useTasks() {
   const queryClient = useQueryClient();
+  const supabase = createClient();
 
-  // Query for fetching all tasks
-  const { data, isLoading, error } = useQuery<Task[]>({
-    queryKey: ["tasks"],
+  // Fetch all tasks with related data
+  const { data: tasks = [], isLoading, error, refetch } = useQuery<Task[]>({
+    queryKey: ['tasks'],
     queryFn: async () => {
-      const result = await getAllTasks();
-      return result.data || [];
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
     },
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    gcTime: 1000 * 60 * 10, // 10 minutes
+    staleTime: 0, // Instant refetches
+    refetchOnWindowFocus: true,
+    refetchInterval: 1000, // Poll every second as fallback
   });
 
-  // Mutation for creating a task
-  const createMutation = useMutation<
-    { success: boolean; data?: Task; error?: string },
-    Error,
-    TaskFormData,
-    { previousTasks?: Task[] }
-  >({
-    mutationFn: createTask,
+  // Real-time subscription
+  useEffect(() => {
+    const channel = supabase
+      .channel('tasks-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tasks' },
+        (payload) => {
+          console.log('📡 Tasks table changed:', payload);
+          queryClient.invalidateQueries({ queryKey: ['tasks'] });
+          // Trigger cross-tab sync
+          window.dispatchEvent(new CustomEvent('dataUpdated'));
+          localStorage.setItem('data-sync-trigger', Date.now().toString());
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'task_assignments' },
+        (payload) => {
+          console.log('📡 Task assignments changed:', payload);
+          queryClient.invalidateQueries({ queryKey: ['tasks'] });
+          window.dispatchEvent(new CustomEvent('dataUpdated'));
+          localStorage.setItem('data-sync-trigger', Date.now().toString());
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient, supabase]);
+
+  // Create task mutation
+  const createMutation = useMutation({
+    mutationFn: async (formData: TaskFormData) => {
+      const { data, error } = await supabase
+        .from('tasks')
+        .insert({
+          title: formData.title,
+          description: formData.description,
+          allocation_mode: formData.allocation_mode,
+          assigned_staff_ids: formData.assigned_staff_ids || [],
+          assigned_team_ids: formData.assigned_team_ids || [],
+          status: formData.status,
+          priority: formData.priority,
+          due_date: formData.due_date,
+          start_date: formData.start_date,
+          is_repeated: formData.is_repeated || false,
+          repeat_config: formData.repeat_config,
+          support_files: formData.support_files || [],
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
     onMutate: async (newTask) => {
-      await queryClient.cancelQueries({ queryKey: ["tasks"] });
-      const previousTasks = queryClient.getQueryData<Task[]>(["tasks"]);
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['tasks'] });
 
-      // Optimistic update
-      queryClient.setQueryData<Task[]>(["tasks"], (old) => {
-        const tempId = `temp-${Date.now()}`;
-        const tempTask: Task = {
-          id: tempId,
-          title: newTask.title,
-          description: newTask.description,
-          allocation_mode: newTask.allocation_mode,
-          assignee_id: newTask.assignee_id,
-          team_id: newTask.team_id,
-          status: newTask.status,
-          priority: newTask.priority,
-          due_date: newTask.due_date,
-          start_date: newTask.start_date,
-          is_repeated: newTask.is_repeated,
-          repeat_config: newTask.repeat_config,
-          created_at: new Date().toISOString(),
+      // Snapshot previous value
+      const previousTasks = queryClient.getQueryData<Task[]>(['tasks']);
+
+      // Optimistically update
+      if (previousTasks) {
+        queryClient.setQueryData<Task[]>(['tasks'], [
+          {
+            id: 'temp-' + Date.now(),
+            ...newTask,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          } as Task,
+          ...previousTasks,
+        ]);
+      }
+
+      return { previousTasks };
+    },
+    onSuccess: async (result) => {
+      toast.success('Task created successfully!');
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      
+      // Send email notifications to assigned staff
+      if (result.assigned_staff_ids && result.assigned_staff_ids.length > 0) {
+        try {
+          const { data: staffData } = await supabase
+            .from('staff')
+            .select('email, name')
+            .in('id', result.assigned_staff_ids);
+
+          if (staffData && staffData.length > 0) {
+            for (const staff of staffData) {
+              await fetch('/api/email/send-task-notification', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  taskId: result.id,
+                  staffEmail: staff.email,
+                  staffName: staff.name,
+                  type: 'assignment',
+                }),
+              });
+            }
+          }
+        } catch (emailError) {
+          console.error('Email notification failed:', emailError);
+          // Don't fail the whole operation if email fails
+        }
+      }
+      
+      // Trigger cross-tab sync
+      window.dispatchEvent(new CustomEvent('dataUpdated'));
+      localStorage.setItem('data-sync-trigger', Date.now().toString());
+    },
+    onError: (error, _, context) => {
+      // Rollback on error
+      if (context?.previousTasks) {
+        queryClient.setQueryData(['tasks'], context.previousTasks);
+      }
+      toast.error('Failed to create task: ' + (error as Error).message);
+    },
+  });
+
+  // Update task mutation
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, ...updates }: Partial<Task> & { id: string }) => {
+      const { data, error } = await supabase
+        .from('tasks')
+        .update({
+          ...updates,
           updated_at: new Date().toISOString(),
-        };
-        return old ? [tempTask, ...old] : [tempTask];
-      });
+        })
+        .eq('id', id)
+        .select()
+        .single();
 
-      return { previousTasks };
+      if (error) throw error;
+      return data;
     },
-    onSuccess: (result) => {
-      if (result.success) {
-        toast.success("Task created successfully!");
-      } else {
-        toast.error(result.error || "Failed to create task.");
-      }
-    },
-    onError: (err, newTask, context) => {
-      toast.error(err.message || "Failed to create task.");
-      if (context?.previousTasks) {
-        queryClient.setQueryData(["tasks"], context.previousTasks);
-      }
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
-    },
-  });
+    onMutate: async (updatedTask) => {
+      await queryClient.cancelQueries({ queryKey: ['tasks'] });
+      const previousTasks = queryClient.getQueryData<Task[]>(['tasks']);
 
-  // Mutation for updating a task
-  const updateMutation = useMutation<
-    { success: boolean; data?: Task; error?: string },
-    Error,
-    UpdateTaskFormData,
-    { previousTasks?: Task[] }
-  >({
-    mutationFn: updateTask,
-    onMutate: async (updatedTaskData) => {
-      await queryClient.cancelQueries({ queryKey: ["tasks"] });
-      const previousTasks = queryClient.getQueryData<Task[]>(["tasks"]);
-
-      // Optimistic update
-      queryClient.setQueryData<Task[]>(["tasks"], (old) => {
-        if (!old) return old;
-        return old.map((task) =>
-          task.id === updatedTaskData.id
-            ? { ...task, ...updatedTaskData, updated_at: new Date().toISOString(), support_files: task.support_files }
-            : task
+      if (previousTasks) {
+        queryClient.setQueryData<Task[]>(
+          ['tasks'],
+          previousTasks.map((task) =>
+            task.id === updatedTask.id ? { ...task, ...updatedTask } : task
+          )
         );
-      });
+      }
 
       return { previousTasks };
     },
-    onSuccess: (result) => {
-      if (result.success) {
-        toast.success("Task updated successfully!");
-      } else {
-        toast.error(result.error || "Failed to update task.");
+    onSuccess: async (result) => {
+      toast.success('Task updated successfully!');
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      
+      // Send email notifications to assigned staff about changes
+      if (result.assigned_staff_ids && result.assigned_staff_ids.length > 0) {
+        try {
+          const { data: staffData } = await supabase
+            .from('staff')
+            .select('email, name')
+            .in('id', result.assigned_staff_ids);
+
+          if (staffData && staffData.length > 0) {
+            for (const staff of staffData) {
+              await fetch('/api/email/send-task-notification', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  taskId: result.id,
+                  staffEmail: staff.email,
+                  staffName: staff.name,
+                  type: 'update',
+                  changes: result,
+                }),
+              });
+            }
+          }
+        } catch (emailError) {
+          console.error('Email notification failed:', emailError);
+          // Don't fail the whole operation if email fails
+        }
       }
+      
+      window.dispatchEvent(new CustomEvent('dataUpdated'));
+      localStorage.setItem('data-sync-trigger', Date.now().toString());
     },
-    onError: (err, updatedTaskData, context) => {
-      toast.error(err.message || "Failed to update task.");
+    onError: (error, _, context) => {
       if (context?.previousTasks) {
-        queryClient.setQueryData(["tasks"], context.previousTasks);
+        queryClient.setQueryData(['tasks'], context.previousTasks);
       }
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      toast.error('Failed to update task: ' + (error as Error).message);
     },
   });
 
-  // Mutation for deleting a task
-  const deleteMutation = useMutation<
-    { success: boolean; error?: string },
-    Error,
-    string,
-    { previousTasks?: Task[] }
-  >({
-    mutationFn: deleteTask,
-    onMutate: async (taskId) => {
-      await queryClient.cancelQueries({ queryKey: ["tasks"] });
-      const previousTasks = queryClient.getQueryData<Task[]>(["tasks"]);
+  // Delete task mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('tasks').delete().eq('id', id);
+      if (error) throw error;
+      return id;
+    },
+    onMutate: async (deletedId) => {
+      await queryClient.cancelQueries({ queryKey: ['tasks'] });
+      const previousTasks = queryClient.getQueryData<Task[]>(['tasks']);
 
-      // Optimistic update
-      queryClient.setQueryData<Task[]>(["tasks"], (old) => {
-        if (!old) return old;
-        return old.filter((task) => task.id !== taskId);
-      });
+      if (previousTasks) {
+        queryClient.setQueryData<Task[]>(
+          ['tasks'],
+          previousTasks.filter((task) => task.id !== deletedId)
+        );
+      }
 
       return { previousTasks };
     },
-    onSuccess: (result) => {
-      if (result.success) {
-        toast.success("Task deleted successfully!");
-      } else {
-        toast.error(result.error || "Failed to delete task.");
-      }
+    onSuccess: () => {
+      toast.success('Task deleted successfully!');
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      window.dispatchEvent(new CustomEvent('dataUpdated'));
+      localStorage.setItem('data-sync-trigger', Date.now().toString());
     },
-    onError: (err, taskId, context) => {
-      toast.error(err.message || "Failed to delete task.");
+    onError: (error, _, context) => {
       if (context?.previousTasks) {
-        queryClient.setQueryData(["tasks"], context.previousTasks);
+        queryClient.setQueryData(['tasks'], context.previousTasks);
       }
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      toast.error('Failed to delete task: ' + (error as Error).message);
     },
   });
 
   return {
-    tasks: data || [],
+    tasks,
     isLoading,
     error,
+    refetch,
     createTask: createMutation.mutate,
     updateTask: updateMutation.mutate,
     deleteTask: deleteMutation.mutate,
@@ -171,30 +287,4 @@ export function useTasks() {
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
   };
-}
-
-// Hook for fetching a single task
-export function useTask(taskId: string) {
-  return useQuery<Task | null>({
-    queryKey: ["task", taskId],
-    queryFn: async () => {
-      const result = await getTaskById(taskId);
-      return result.data || null;
-    },
-    enabled: !!taskId,
-  });
-}
-
-// Hook for fetching team members
-export function useTeamMembers(teamId: string | undefined) {
-  return useQuery({
-    queryKey: ["team-members", teamId],
-    queryFn: async () => {
-      if (!teamId) return [];
-      const result = await getTeamMembers(teamId);
-      return (result.data || []) as Staff[];
-    },
-    enabled: !!teamId,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-  });
 }

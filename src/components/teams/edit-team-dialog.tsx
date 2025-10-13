@@ -37,8 +37,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Check, ChevronsUpDown, Users, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Team, UpdateTeamFormData } from "@/types";
-import { useOfflineTeams } from "@/hooks/use-offline-teams";
-import { useOfflineStaff } from "@/hooks/use-offline-staff";
+import { useTeams } from "@/hooks/use-teams";
+import { useStaff } from "@/hooks/use-staff";
 import type { Staff } from "@/types";
 
 interface EditTeamDialogProps {
@@ -57,15 +57,18 @@ const getInitials = (name: string) => {
 };
 
 export function EditTeamDialog({ team, isOpen, onClose }: EditTeamDialogProps) {
-  const { updateTeam, isUpdating } = useOfflineTeams();
-  const { staff } = useOfflineStaff();
+  const { updateTeam, isUpdating, teamMembers } = useTeams();
+  const { staff } = useStaff();
+  
+  // Get current team members
+  const currentMembers = teamMembers?.filter(tm => tm.team_id === team.id).map(tm => tm.staff_id) || [];
   
   const [formData, setFormData] = useState({
     name: team.name || "",
     description: team.description || "",
     leader_id: team.leader_id || "",
     branch: team.branch || "",
-    members: team.members?.map(m => m.staff_id) || [],
+    members: currentMembers,
   });
 
   const [leaderOpen, setLeaderOpen] = useState(false);
@@ -73,14 +76,15 @@ export function EditTeamDialog({ team, isOpen, onClose }: EditTeamDialogProps) {
 
   // Reset form when team changes
   useEffect(() => {
+    const currentMembers = teamMembers?.filter(tm => tm.team_id === team.id).map(tm => tm.staff_id) || [];
     setFormData({
       name: team.name || "",
       description: team.description || "",
       leader_id: team.leader_id || "",
       branch: team.branch || "",
-      members: team.members?.map(m => m.staff_id) || [],
+      members: currentMembers,
     });
-  }, [team]);
+  }, [team, teamMembers]);
 
   const handleInputChange = (field: string, value: string | string[]) => {
     setFormData(prev => ({
@@ -163,7 +167,7 @@ export function EditTeamDialog({ team, isOpen, onClose }: EditTeamDialogProps) {
                   {selectedLeader ? (
                     <div className="flex items-center gap-2">
                       <Avatar className="h-6 w-6">
-                        <AvatarImage src={selectedLeader.profile_image_url || ""} />
+                        <AvatarImage src={selectedLeader.profile_image_url || undefined} />
                         <AvatarFallback className="text-xs">
                           {getInitials(selectedLeader.name)}
                         </AvatarFallback>
@@ -198,7 +202,7 @@ export function EditTeamDialog({ team, isOpen, onClose }: EditTeamDialogProps) {
                           )}
                         />
                         <Avatar className="h-6 w-6 mr-2">
-                          <AvatarImage src={staff.profile_image_url || ""} />
+                          <AvatarImage src={staff.profile_image_url || undefined} />
                           <AvatarFallback className="text-xs">
                             {getInitials(staff.name)}
                           </AvatarFallback>
@@ -288,7 +292,7 @@ export function EditTeamDialog({ team, isOpen, onClose }: EditTeamDialogProps) {
                             )}
                           />
                           <Avatar className="h-6 w-6 mr-2">
-                            <AvatarImage src={staff.profile_image_url || ""} />
+                            <AvatarImage src={staff.profile_image_url || undefined} />
                             <AvatarFallback className="text-xs">
                               {getInitials(staff.name)}
                             </AvatarFallback>
@@ -311,7 +315,7 @@ export function EditTeamDialog({ team, isOpen, onClose }: EditTeamDialogProps) {
                 {selectedMembers.map((member) => (
                   <Badge key={member.id} variant="secondary" className="flex items-center gap-1">
                     <Avatar className="h-4 w-4">
-                      <AvatarImage src={member.profile_image_url || ""} />
+                      <AvatarImage src={member.profile_image_url || undefined} />
                       <AvatarFallback className="text-xs">
                         {getInitials(member.name)}
                       </AvatarFallback>

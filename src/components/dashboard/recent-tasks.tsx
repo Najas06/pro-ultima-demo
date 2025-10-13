@@ -8,6 +8,7 @@ import { Task } from "@/types";
 import { 
   IconCalendar, 
   IconUser, 
+  IconUsers,
   IconArrowRight,
   IconAlertCircle
 } from "@tabler/icons-react";
@@ -148,10 +149,21 @@ export function RecentTasks({ tasks, limit = 5 }: RecentTasksProps) {
                     </div>
 
                     <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                      {task.assignee && (
+                      {task.assigned_staff_ids?.length > 0 && (
                         <div className="flex items-center gap-1">
                           <IconUser className="h-3 w-3" />
-                          <span className="truncate">{task.assignee.name}</span>
+                          <span className="truncate">
+                            {task.assigned_staff_ids.length} staff member{task.assigned_staff_ids.length > 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      )}
+                      
+                      {task.assigned_team_ids?.length > 0 && (
+                        <div className="flex items-center gap-1">
+                          <IconUsers className="h-3 w-3" />
+                          <span className="truncate">
+                            {task.assigned_team_ids.length} team{task.assigned_team_ids.length > 1 ? 's' : ''}
+                          </span>
                         </div>
                       )}
                       
@@ -166,10 +178,10 @@ export function RecentTasks({ tasks, limit = 5 }: RecentTasksProps) {
                     </div>
                   </div>
 
-                  {task.assignee && (
+                  {(task.assigned_staff_ids?.length > 0 || task.assigned_team_ids?.length > 0) && (
                     <Avatar className="h-8 w-8 flex-shrink-0">
                       <AvatarFallback className="text-xs">
-                        {getInitials(task.assignee.name)}
+                        {(task.assigned_staff_ids?.length || 0) + (task.assigned_team_ids?.length || 0)}
                       </AvatarFallback>
                     </Avatar>
                   )}

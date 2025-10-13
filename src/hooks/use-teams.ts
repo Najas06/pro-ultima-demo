@@ -1,169 +1,227 @@
-"use client";
+'use client';
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
-import {
-  createTeam,
-  updateTeam,
-  deleteTeam,
-  getAllTeams,
-} from "@/lib/actions/teamActions";
-import type { Team, TeamFormData, UpdateTeamFormData } from "@/types";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { createClient } from '@/lib/supabase/client';
+import { useEffect } from 'react';
+import { toast } from 'sonner';
+
+interface Team {
+  id: string;
+  name: string;
+  description?: string;
+  leader_id: string;
+  branch?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface TeamMember {
+  id: string;
+  team_id: string;
+  staff_id: string;
+  joined_at: string;
+}
+
+interface TeamFormData {
+  name: string;
+  description?: string;
+  leader_id: string;
+  branch?: string;
+  member_ids?: string[];
+}
 
 export function useTeams() {
   const queryClient = useQueryClient();
+  const supabase = createClient();
 
-  // Query to fetch all teams
-  const {
-    data: teams,
-    isLoading,
-    error,
-  } = useQuery<Team[], Error>({
-    queryKey: ["teams"],
-    queryFn: getAllTeams,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    gcTime: 1000 * 60 * 10, // 10 minutes
+  // Fetch all teams
+  const { data: teams = [], isLoading, error, refetch } = useQuery<Team[]>({
+    queryKey: ['teams'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('teams')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 0, // Instant refetches
+    refetchOnWindowFocus: true,
+    refetchInterval: 1000, // Poll every second as fallback
   });
 
-  // Mutation for creating a team
-  const createMutation = useMutation<
-    { success: boolean; data?: Team; error?: string },
-    Error,
-    TeamFormData,
-    { previousTeams?: Team[] }
-  >({
-    mutationFn: createTeam,
-    onMutate: async (newTeam) => {
-      await queryClient.cancelQueries({ queryKey: ["teams"] });
-      const previousTeams = queryClient.getQueryData<Team[]>(["teams"]);
+  // Fetch team members
+  const { data: teamMembers = [] } = useQuery<TeamMember[]>({
+    queryKey: ['team-members'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('team_members')
+        .select('*');
 
-      // Optimistic update
-      queryClient.setQueryData<Team[]>(["teams"], (old) => {
-        const tempId = `temp-${Date.now()}`;
-        const tempTeam: Team = {
-          id: tempId,
-          name: newTeam.name,
-          description: newTeam.description,
-          leader_id: newTeam.leader_id,
-          branch: newTeam.branch,
-          members: [],
-          created_at: new Date().toISOString(),
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 0, // Instant refetches
+  });
+
+  // Real-time subscription
+  useEffect(() => {
+    const teamsChannel = supabase
+      .channel('teams-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'teams' },
+        (payload) => {
+          console.log('📡 Teams table changed:', payload);
+          queryClient.invalidateQueries({ queryKey: ['teams'] });
+          window.dispatchEvent(new CustomEvent('dataUpdated'));
+          localStorage.setItem('data-sync-trigger', Date.now().toString());
+        }
+      )
+      .subscribe();
+
+    const membersChannel = supabase
+      .channel('team-members-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'team_members' },
+        (payload) => {
+          console.log('📡 Team members table changed:', payload);
+          queryClient.invalidateQueries({ queryKey: ['team-members'] });
+          queryClient.invalidateQueries({ queryKey: ['teams'] });
+          window.dispatchEvent(new CustomEvent('dataUpdated'));
+          localStorage.setItem('data-sync-trigger', Date.now().toString());
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(teamsChannel);
+      supabase.removeChannel(membersChannel);
+    };
+  }, [queryClient, supabase]);
+
+  // Create team mutation
+  const createMutation = useMutation({
+    mutationFn: async (formData: TeamFormData) => {
+      // Create team
+      const { data: team, error: teamError } = await supabase
+        .from('teams')
+        .insert({
+          name: formData.name,
+          description: formData.description,
+          leader_id: formData.leader_id,
+          branch: formData.branch,
+        })
+        .select()
+        .single();
+
+      if (teamError) throw teamError;
+
+      // Add team members
+      if (formData.member_ids && formData.member_ids.length > 0) {
+        const members = formData.member_ids.map((staff_id) => ({
+          team_id: team.id,
+          staff_id,
+        }));
+
+        const { error: membersError } = await supabase
+          .from('team_members')
+          .insert(members);
+
+        if (membersError) throw membersError;
+      }
+
+      return team;
+    },
+    onSuccess: () => {
+      toast.success('Team created successfully!');
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      window.dispatchEvent(new CustomEvent('dataUpdated'));
+      localStorage.setItem('data-sync-trigger', Date.now().toString());
+    },
+    onError: (error) => {
+      toast.error('Failed to create team: ' + (error as Error).message);
+    },
+  });
+
+  // Update team mutation
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, member_ids, ...updates }: Partial<Team> & { id: string; member_ids?: string[] }) => {
+      // Update team
+      const { data: team, error: teamError } = await supabase
+        .from('teams')
+        .update({
+          ...updates,
           updated_at: new Date().toISOString(),
-        };
-        return old ? [tempTeam, ...old] : [tempTeam];
-      });
+        })
+        .eq('id', id)
+        .select()
+        .single();
 
-      return { previousTeams };
-    },
-    onSuccess: (result) => {
-      if (result.success) {
-        toast.success("Team created successfully!");
-      } else {
-        toast.error(result.error || "Failed to create team.");
+      if (teamError) throw teamError;
+
+      // Update members if provided
+      if (member_ids !== undefined) {
+        // Delete existing members
+        await supabase.from('team_members').delete().eq('team_id', id);
+
+        // Add new members
+        if (member_ids.length > 0) {
+          const members = member_ids.map((staff_id) => ({
+            team_id: id,
+            staff_id,
+          }));
+
+          const { error: membersError } = await supabase
+            .from('team_members')
+            .insert(members);
+
+          if (membersError) throw membersError;
+        }
       }
+
+      return team;
     },
-    onError: (err, newTeam, context) => {
-      toast.error(err.message || "Failed to create team.");
-      if (context?.previousTeams) {
-        queryClient.setQueryData(["teams"], context.previousTeams);
-      }
+    onSuccess: () => {
+      toast.success('Team updated successfully!');
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      window.dispatchEvent(new CustomEvent('dataUpdated'));
+      localStorage.setItem('data-sync-trigger', Date.now().toString());
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["teams"] });
+    onError: (error) => {
+      toast.error('Failed to update team: ' + (error as Error).message);
     },
   });
 
-  // Mutation for updating a team
-  const updateMutation = useMutation<
-    { success: boolean; data?: Team; error?: string },
-    Error,
-    UpdateTeamFormData,
-    { previousTeams?: Team[] }
-  >({
-    mutationFn: updateTeam,
-    onMutate: async (updatedTeamData) => {
-      await queryClient.cancelQueries({ queryKey: ["teams"] });
-      const previousTeams = queryClient.getQueryData<Team[]>(["teams"]);
-
-      // Optimistic update
-      queryClient.setQueryData<Team[]>(["teams"], (old) =>
-        old
-          ? old.map((team) =>
-              team.id === updatedTeamData.id
-                ? {
-                    ...team,
-                    name: updatedTeamData.name,
-                    description: updatedTeamData.description,
-                    leader_id: updatedTeamData.leader_id,
-                    branch: updatedTeamData.branch,
-                    updated_at: new Date().toISOString(),
-                  }
-                : team
-            )
-          : []
-      );
-
-      return { previousTeams };
+  // Delete team mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('teams').delete().eq('id', id);
+      if (error) throw error;
+      return id;
     },
-    onSuccess: (result) => {
-      if (result.success) {
-        toast.success("Team updated successfully!");
-      } else {
-        toast.error(result.error || "Failed to update team.");
-      }
+    onSuccess: () => {
+      toast.success('Team deleted successfully!');
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      window.dispatchEvent(new CustomEvent('dataUpdated'));
+      localStorage.setItem('data-sync-trigger', Date.now().toString());
     },
-    onError: (err, updatedTeamData, context) => {
-      toast.error(err.message || "Failed to update team.");
-      if (context?.previousTeams) {
-        queryClient.setQueryData(["teams"], context.previousTeams);
-      }
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["teams"] });
-    },
-  });
-
-  // Mutation for deleting a team
-  const deleteMutation = useMutation<
-    { success: boolean; error?: string },
-    Error,
-    string,
-    { previousTeams?: Team[] }
-  >({
-    mutationFn: deleteTeam,
-    onMutate: async (teamId) => {
-      await queryClient.cancelQueries({ queryKey: ["teams"] });
-      const previousTeams = queryClient.getQueryData<Team[]>(["teams"]);
-
-      // Optimistic update
-      queryClient.setQueryData<Team[]>(["teams"], (old) =>
-        old ? old.filter((team) => team.id !== teamId) : []
-      );
-
-      return { previousTeams };
-    },
-    onSuccess: (result) => {
-      if (result.success) {
-        toast.success("Team deleted successfully!");
-      } else {
-        toast.error(result.error || "Failed to delete team.");
-      }
-    },
-    onError: (err, teamId, context) => {
-      toast.error(err.message || "Failed to delete team.");
-      if (context?.previousTeams) {
-        queryClient.setQueryData(["teams"], context.previousTeams);
-      }
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["teams"] });
+    onError: (error) => {
+      toast.error('Failed to delete team: ' + (error as Error).message);
     },
   });
 
   return {
-    teams: teams || [],
+    teams,
+    teamMembers,
     isLoading,
     error,
+    refetch,
     createTeam: createMutation.mutate,
     updateTeam: updateMutation.mutate,
     deleteTeam: deleteMutation.mutate,
@@ -172,4 +230,3 @@ export function useTeams() {
     isDeleting: deleteMutation.isPending,
   };
 }
-

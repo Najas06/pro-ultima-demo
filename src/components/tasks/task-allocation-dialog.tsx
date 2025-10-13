@@ -37,9 +37,9 @@ import {
   X,
 } from "lucide-react";
 import { IconCirclePlusFilled } from "@tabler/icons-react";
-import { useOfflineTasks } from "@/hooks/use-offline-tasks";
-import { useOfflineStaff } from "@/hooks/use-offline-staff";
-import { useOfflineTeams } from "@/hooks/use-offline-teams";
+import { useTasks } from "@/hooks/use-tasks";
+import { useStaff } from "@/hooks/use-staff";
+import { useTeams } from "@/hooks/use-teams";
 import type { TaskFormData, TaskRepeatConfig, Staff } from "@/types";
 
 interface TaskAllocationDialogProps {
@@ -47,9 +47,9 @@ interface TaskAllocationDialogProps {
 }
 
 export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
-  const { createTask, isCreating } = useOfflineTasks();
-  const { staff } = useOfflineStaff();
-  const { teams } = useOfflineTeams();
+  const { createTask, isCreating } = useTasks();
+  const { staff } = useStaff();
+  const { teams, teamMembers } = useTeams();
 
   // Transform staff to match expected interface
   const employees = staff.map(s => ({
@@ -73,8 +73,8 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
   // Form fields
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [selectedIndividualStaff, setSelectedIndividualStaff] = useState("");
-  const [selectedTeam, setSelectedTeam] = useState("");
+  const [selectedIndividualStaff, setSelectedIndividualStaff] = useState<string[]>([]);
+  const [selectedTeam, setSelectedTeam] = useState<string[]>([]);
   const [selectedTeamMembers, setSelectedTeamMembers] = useState<string[]>([]);
   const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
   const [dueDate, setDueDate] = useState<Date>();
@@ -93,14 +93,17 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("17:00");
 
-  // Get team members from selected team
-  const selectedTeamData = teams.find(t => t.id === selectedTeam);
-  const teamMembersList = selectedTeamData?.members?.map(member => member.staff).filter((staff): staff is Staff => !!staff) || [];
-  const loadingTeamMembers = false; // No loading state needed for offline data
+  // Get team members from selected teams
+  const selectedTeamData = teams.filter(t => selectedTeam.includes(t.id));
+  const selectedTeamMemberIds = teamMembers
+    ?.filter(tm => selectedTeam.includes(tm.team_id))
+    .map(tm => tm.staff_id) || [];
+  const teamMembersList = staff.filter(s => selectedTeamMemberIds.includes(s.id));
+  const loadingTeamMembers = false;
 
-  // Auto-select ALL team members when team changes
+  // Auto-select ALL team members when teams change
   useEffect(() => {
-    if (selectedTeam && teamMembersList.length > 0) {
+    if (selectedTeam.length > 0 && teamMembersList.length > 0) {
       setSelectedTeamMembers(teamMembersList.map(m => m.id));
     } else {
       setSelectedTeamMembers([]);
@@ -149,8 +152,8 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
   const resetForm = () => {
     setTitle("");
     setDescription("");
-    setSelectedIndividualStaff("");
-    setSelectedTeam("");
+    setSelectedIndividualStaff([]);
+    setSelectedTeam([]);
     setSelectedTeamMembers([]);
     setPriority('medium');
     setDueDate(undefined);
@@ -187,9 +190,8 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
       title,
       description,
       allocation_mode: allocationMode,
-      assignee_id: allocationMode === 'individual' ? selectedIndividualStaff : undefined,
-      team_id: allocationMode === 'team' ? selectedTeam : undefined,
-      assigned_staff_ids: allocationMode === 'team' ? selectedTeamMembers : undefined,
+      assigned_staff_ids: allocationMode === 'individual' ? selectedIndividualStaff : [],
+      assigned_team_ids: allocationMode === 'team' ? selectedTeam : [],
       status: 'todo',
       priority,
       due_date: dueDate?.toISOString(),
@@ -199,10 +201,9 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
       support_files: files,
     };
 
-    // Convert TaskRepeatConfig to Record<string, unknown> for offline storage
+    // Prepare task data
     const taskData = {
       ...formData,
-      repeat_config: formData.repeat_config ? (formData.repeat_config as unknown as Record<string, unknown>) : undefined,
       support_files: files?.map(file => file.name) || undefined, // Convert File[] to string[]
     };
     createTask(taskData);
@@ -260,8 +261,8 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
               </div>
               <div className="text-xs sm:text-sm text-muted-foreground">
                 {allocationMode === 'individual'
-                  ? 'Assign to single staff'
-                  : 'Assign to team members'}
+                  ? 'Assign to multiple staff members'
+                  : 'Assign to multiple teams'}
               </div>
             </div>
           </div>
@@ -446,55 +447,137 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
             {/* Individual Staff Selection */}
             {allocationMode === 'individual' && (
               <div className="space-y-2">
-                <Label htmlFor="individual-staff" className="text-sm font-medium">Staff Member *</Label>
-                <Select
-                  value={selectedIndividualStaff}
-                  onValueChange={setSelectedIndividualStaff}
-                  required
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select staff member" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {employees.map((staff) => (
-                      <SelectItem key={staff.id} value={staff.id}>
-                        <div className="flex items-center gap-2">
+                <Label htmlFor="individual-staff" className="text-sm font-medium">Staff Members *</Label>
+                
+                {/* Selected Staff Display */}
+                {selectedIndividualStaff.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {selectedIndividualStaff.map((staffId) => {
+                      const staff = employees.find(e => e.id === staffId);
+                      return staff ? (
+                        <div
+                          key={staffId}
+                          className="flex items-center gap-2 bg-primary/10 text-primary px-3 py-1 rounded-full text-sm"
+                        >
                           <span>{staff.name}</span>
                           <span className="text-xs text-muted-foreground">({staff.role})</span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedIndividualStaff(prev => prev.filter(id => id !== staffId))}
+                            className="ml-1 hover:bg-primary/20 rounded-full p-0.5"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
                         </div>
-                      </SelectItem>
-                    ))}
+                      ) : null;
+                    })}
+                  </div>
+                )}
+
+                {/* Staff Selection Dropdown */}
+                <Select
+                  value=""
+                  onValueChange={(staffId) => {
+                    if (staffId && !selectedIndividualStaff.includes(staffId)) {
+                      setSelectedIndividualStaff(prev => [...prev, staffId]);
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select staff members to assign" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {employees
+                      .filter(staff => !selectedIndividualStaff.includes(staff.id))
+                      .map((staff) => (
+                        <SelectItem key={staff.id} value={staff.id}>
+                          <div className="flex items-center gap-2">
+                            <span>{staff.name}</span>
+                            <span className="text-xs text-muted-foreground">({staff.role})</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    {employees.filter(staff => !selectedIndividualStaff.includes(staff.id)).length === 0 && (
+                      <SelectItem value="no-staff" disabled>All staff already selected</SelectItem>
+                    )}
                     {employees.length === 0 && (
                       <SelectItem value="no-staff" disabled>No staff available</SelectItem>
                     )}
                   </SelectContent>
                 </Select>
+                
+                {selectedIndividualStaff.length === 0 && (
+                  <p className="text-xs text-muted-foreground">Please select at least one staff member</p>
+                )}
               </div>
             )}
 
             {/* Team Selection (only for team mode) */}
             {allocationMode === 'team' && (
               <div className="space-y-2">
-                <Label htmlFor="team" className="text-sm font-medium">Team *</Label>
+                <Label htmlFor="team" className="text-sm font-medium">Teams *</Label>
+                
+                {/* Selected Teams Display */}
+                {selectedTeam.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {selectedTeam.map((teamId) => {
+                      const team = teams.find(t => t.id === teamId);
+                      return team ? (
+                        <div
+                          key={teamId}
+                          className="flex items-center gap-2 bg-primary/10 text-primary px-3 py-1 rounded-full text-sm"
+                        >
+                          <span>{team.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedTeam(prev => prev.filter(id => id !== teamId))}
+                            className="ml-1 hover:bg-primary/20 rounded-full p-0.5"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ) : null;
+                    })}
+                  </div>
+                )}
+
+                {/* Team Selection Dropdown */}
                 <Select
-                  value={selectedTeam}
-                  onValueChange={setSelectedTeam}
-                  required
+                  value=""
+                  onValueChange={(teamId) => {
+                    if (teamId && !selectedTeam.includes(teamId)) {
+                      setSelectedTeam(prev => [...prev, teamId]);
+                    }
+                  }}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select team" />
+                    <SelectValue placeholder="Select teams to assign" />
                   </SelectTrigger>
                   <SelectContent>
-                    {teams.map((team) => (
-                      <SelectItem key={team.id} value={team.id}>
-                        {team.name}
-                      </SelectItem>
-                    ))}
+                    {teams
+                      .filter(team => !selectedTeam.includes(team.id))
+                      .map((team) => (
+                        <SelectItem key={team.id} value={team.id}>
+                          <div className="flex items-center gap-2">
+                            <span>{team.name}</span>
+                            <span className="text-xs text-muted-foreground">
+                              ({teamMembers?.filter(tm => tm.team_id === team.id).length || 0} members)
+                            </span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    {teams.filter(team => !selectedTeam.includes(team.id)).length === 0 && (
+                      <SelectItem value="no-teams" disabled>All teams already selected</SelectItem>
+                    )}
                     {teams.length === 0 && (
                       <SelectItem value="no-teams" disabled>No teams available</SelectItem>
                     )}
                   </SelectContent>
                 </Select>
+                
+                {selectedTeam.length === 0 && (
+                  <p className="text-xs text-muted-foreground">Please select at least one team</p>
+                )}
               </div>
             )}
 
@@ -555,9 +638,9 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
           </div>
 
           {/* Selection Summary */}
-          {allocationMode === 'individual' && selectedIndividualStaff && (
+          {allocationMode === 'individual' && selectedIndividualStaff.length > 0 && (
             <div className="text-sm text-green-600 bg-green-50 dark:bg-green-950/20 p-2 rounded-md">
-              Task will be assigned to: {employees.find(s => s.id === selectedIndividualStaff)?.name}
+              Task will be assigned to: {selectedIndividualStaff.map(staffId => employees.find(s => s.id === staffId)?.name).filter(Boolean).join(', ')}
               {isRepeatedTask && ` (repeated ${repeatFrequency}`}
               {isRepeatedTask && repeatFrequency === 'custom' && customDays.length > 0 && 
                 ` on ${customDays.map(day => getDayName(day)).join(', ')}`}
@@ -566,9 +649,9 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
             </div>
           )}
 
-          {allocationMode === 'team' && selectedTeam && (
+          {allocationMode === 'team' && selectedTeam.length > 0 && (
             <div className="text-sm text-green-600 bg-green-50 dark:bg-green-950/20 p-2 rounded-md">
-              Task will be assigned to team: {selectedTeamData?.name}
+              Task will be assigned to teams: {selectedTeamData.map(team => team.name).join(', ')}
               {isRepeatedTask && ` (repeated ${repeatFrequency}`}
               {isRepeatedTask && repeatFrequency === 'custom' && customDays.length > 0 && 
                 ` on ${customDays.map(day => getDayName(day)).join(', ')}`}

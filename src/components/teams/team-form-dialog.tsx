@@ -27,7 +27,8 @@ import {
   Crown,
   UserPlus
 } from "lucide-react";
-import { useOfflineStaff } from "@/hooks/use-offline-staff";
+import { useStaff } from "@/hooks/use-staff";
+import { useTeams } from "@/hooks/use-teams";
 import { toast } from "sonner";
 import type { Team } from "@/types";
 
@@ -67,7 +68,8 @@ export function TeamFormDialog({
   isUpdating = false,
   isDeleting = false,
 }: TeamFormDialogProps) {
-  const { staff } = useOfflineStaff();
+  const { staff } = useStaff();
+  const { teamMembers } = useTeams();
   const isEditMode = !!team;
 
   // Transform staff to match expected interface
@@ -101,7 +103,7 @@ export function TeamFormDialog({
         description: team.description || "",
         leader_id: team.leader_id,
         branch: team.branch || "",
-        member_ids: team.members?.map(m => m.staff_id) || [],
+        member_ids: teamMembers?.filter(tm => tm.team_id === team.id).map(tm => tm.staff_id) || [],
       });
     } else if (!team && isOpen) {
       // Reset form for new team

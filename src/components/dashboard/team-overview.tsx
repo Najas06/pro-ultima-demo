@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Team, Task } from "@/types";
+import { useTeams } from "@/hooks/use-teams";
 import { 
   IconUsers, 
   IconUserCheck, 
@@ -30,7 +31,7 @@ const getInitials = (name: string) => {
 
 const getTeamProductivity = (teamId: string, tasks: Task[]) => {
   const teamTasks = tasks.filter(task => 
-    task.team && task.team.id === teamId
+    task.assigned_team_ids && task.assigned_team_ids.includes(teamId)
   );
   
   if (teamTasks.length === 0) return { completed: 0, total: 0, percentage: 0 };
@@ -53,9 +54,15 @@ const getProductivityIcon = (percentage: number) => {
 };
 
 export function TeamOverview({ teams, tasks, limit = 3 }: TeamOverviewProps) {
+  const { teamMembers } = useTeams();
+  
   // Sort teams by member count (largest first) and take the limit
   const topTeams = teams
-    .sort((a, b) => (b.members?.length || 0) - (a.members?.length || 0))
+    .sort((a, b) => {
+      const aMemberCount = teamMembers?.filter(tm => tm.team_id === a.id).length || 0;
+      const bMemberCount = teamMembers?.filter(tm => tm.team_id === b.id).length || 0;
+      return bMemberCount - aMemberCount;
+    })
     .slice(0, limit);
 
   return (
@@ -91,7 +98,7 @@ export function TeamOverview({ teams, tasks, limit = 3 }: TeamOverviewProps) {
                     <div className="flex items-center gap-2 mb-1">
                       <h4 className="text-sm font-medium truncate">{team.name}</h4>
                       <Badge variant="outline" className="text-xs">
-                        {team.members?.length || 0} members
+                        {teamMembers?.filter(tm => tm.team_id === team.id).length || 0} members
                       </Badge>
                     </div>
                     
@@ -104,7 +111,7 @@ export function TeamOverview({ teams, tasks, limit = 3 }: TeamOverviewProps) {
                     <div className="flex items-center gap-4 text-xs text-muted-foreground">
                       <div className="flex items-center gap-1">
                         <IconUsers className="h-3 w-3" />
-                        <span>{team.members?.length || 0} members</span>
+                        <span>{teamMembers?.filter(tm => tm.team_id === team.id).length || 0} members</span>
                       </div>
                       
                       <div className="flex items-center gap-1">
@@ -136,21 +143,10 @@ export function TeamOverview({ teams, tasks, limit = 3 }: TeamOverviewProps) {
                       </Avatar>
                     )}
                     
-                    {team.members && team.members.length > 1 && (
-                      <div className="flex -space-x-1">
-                        {team.members.slice(0, 3).map((member, index) => (
-                          <Avatar key={member.id || index} className="h-6 w-6 border-2 border-white">
-                            <AvatarFallback className="text-xs">
-                              {getInitials(member.staff?.name || "U")}
-                            </AvatarFallback>
-                          </Avatar>
-                        ))}
-                        {team.members.length > 3 && (
-                          <div className="h-6 w-6 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center">
-                            <span className="text-xs text-gray-600">+{team.members.length - 3}</span>
-                          </div>
-                        )}
-                      </div>
+                    {teamMembers?.filter(tm => tm.team_id === team.id).length > 0 && (
+                      <Badge variant="secondary" className="text-xs">
+                        {teamMembers?.filter(tm => tm.team_id === team.id).length} members
+                      </Badge>
                     )}
                   </div>
                 </div>

@@ -150,33 +150,27 @@ export function TaskCard({ task, onEdit, onDelete }: TaskCardProps) {
           )}
         </div>
 
-        {/* Assignee */}
-        {task.assignee && (
+        {/* Assignees */}
+        {task.assigned_staff_ids?.length > 0 && (
           <div className="flex items-center gap-2">
             <Avatar className="h-6 w-6 border">
-              <AvatarImage src={task.assignee.profile_image_url || ""} />
               <AvatarFallback className="text-xs bg-primary/10">
-                {getInitials(task.assignee.name)}
+                {task.assigned_staff_ids.length}
               </AvatarFallback>
             </Avatar>
             <span className="text-xs text-muted-foreground truncate font-medium">
-              {task.assignee.name}
+              {task.assigned_staff_ids.length} staff member{task.assigned_staff_ids.length > 1 ? 's' : ''}
             </span>
           </div>
         )}
 
         {/* Team Assignment */}
-        {task.allocation_mode === "team" && task.team && (
+        {task.assigned_team_ids?.length > 0 && (
           <div className="flex items-center gap-2 p-2 bg-purple-50 dark:bg-purple-950/20 rounded-md border border-purple-100 dark:border-purple-900/30">
             <Users className="h-3 w-3 text-purple-600 dark:text-purple-400" />
             <span className="text-xs text-purple-900 dark:text-purple-100 font-medium truncate">
-              {task.team.name}
+              {task.assigned_team_ids.length} team{task.assigned_team_ids.length > 1 ? 's' : ''}
             </span>
-            {task.assigned_staff && task.assigned_staff.length > 0 && (
-              <Badge variant="secondary" className="text-xs ml-auto">
-                {task.assigned_staff.length}
-              </Badge>
-            )}
           </div>
         )}
 
