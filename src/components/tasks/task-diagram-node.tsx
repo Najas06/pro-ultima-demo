@@ -29,14 +29,16 @@ const TaskDiagramNode = memo(({ data }: TaskDiagramNodeData) => {
     'from-green-500/20 to-green-500/5';
 
   return (
-    <DatabaseSchemaNode className="p-0 min-w-[250px]">
-      <DatabaseSchemaNodeHeader className={`bg-gradient-to-r ${headerColor}`}>
-        {data.label}
+    <DatabaseSchemaNode className="p-0 min-w-[280px] max-w-[320px] hover:shadow-lg transition-shadow duration-200">
+      <DatabaseSchemaNodeHeader className={`bg-gradient-to-r ${headerColor} text-sm font-semibold`}>
+        <div className="truncate" title={data.label}>
+          {data.label}
+        </div>
       </DatabaseSchemaNodeHeader>
       <DatabaseSchemaNodeBody>
         {data.schema.map((entry, index) => (
-          <DatabaseSchemaTableRow key={index}>
-            <DatabaseSchemaTableCell className="pl-4 pr-2 font-medium text-muted-foreground">
+          <DatabaseSchemaTableRow key={index} className="hover:bg-muted/30">
+            <DatabaseSchemaTableCell className="pl-4 pr-2 font-medium text-muted-foreground text-sm">
               {entry.title}
             </DatabaseSchemaTableCell>
             <DatabaseSchemaTableCell className="pr-4 pl-2">
@@ -51,7 +53,7 @@ const TaskDiagramNode = memo(({ data }: TaskDiagramNodeData) => {
                   labelClassName="text-foreground font-medium"
                 />
               ) : (
-                <span className="text-foreground">{entry.value}</span>
+                <span className="text-foreground text-sm">{entry.value}</span>
               )}
             </DatabaseSchemaTableCell>
           </DatabaseSchemaTableRow>

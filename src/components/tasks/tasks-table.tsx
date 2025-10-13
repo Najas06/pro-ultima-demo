@@ -20,11 +20,13 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog";
-import { MoreVertical, Edit, Trash2, Calendar, Repeat, Users, User, Network } from "lucide-react";
+import { MoreVertical, Edit, Trash2, Calendar, Repeat, Users, User, Network, Eye } from "lucide-react";
 import { Task, TaskStatus, TaskPriority } from "@/types";
 import { EditTaskDialog } from "./edit-task-dialog";
+import { TaskVerificationDialog } from "@/components/admin/task-verification-dialog";
 import { useStaff } from "@/hooks/use-staff";
 import { useTeams } from "@/hooks/use-teams";
+import { useTaskProofs } from "@/hooks/use-task-proofs";
 import { format } from "date-fns";
 
 interface TasksTableProps {
@@ -36,10 +38,12 @@ export function TasksTable({ tasks, onDelete }: TasksTableProps) {
   const router = useRouter();
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isProofDialogOpen, setIsProofDialogOpen] = useState(false);
   
   // Get staff and teams data for name resolution
   const { staff } = useStaff();
   const { teams } = useTeams();
+  const { proofs } = useTaskProofs();
   
   // Debug: Log staff data when it changes
   useEffect(() => {
@@ -187,6 +191,22 @@ export function TasksTable({ tasks, onDelete }: TasksTableProps) {
     setIsEditOpen(true);
   };
 
+  // Handle view proofs
+  const handleViewProofs = (task: Task) => {
+    setSelectedTask(task);
+    setIsProofDialogOpen(true);
+  };
+
+  // Get proofs for a specific task
+  const getTaskProofs = (taskId: string) => {
+    return proofs.filter(proof => proof.task_id === taskId);
+  };
+
+  // Get pending proofs count for a task
+  const getPendingProofsCount = (taskId: string) => {
+    return proofs.filter(proof => proof.task_id === taskId && proof.is_verified === null).length;
+  };
+
   // Get assignee info for expanded task
   const getAssigneeInfo = (assigneeName: string, type: 'staff' | 'team', imageUrl?: string) => {
     return {
@@ -312,6 +332,22 @@ export function TasksTable({ tasks, onDelete }: TasksTableProps) {
                             <Network className="h-4 w-4 mr-2" />
                             View Diagram
                           </DropdownMenuItem>
+                          {getTaskProofs(assignment.task.id).length > 0 && (
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleViewProofs(assignment.task);
+                              }}
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              View Proofs
+                              {getPendingProofsCount(assignment.task.id) > 0 && (
+                                <Badge variant="secondary" className="ml-2 text-xs">
+                                  {getPendingProofsCount(assignment.task.id)}
+                                </Badge>
+                              )}
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem
                             onClick={(e) => {
                               e.stopPropagation();
@@ -358,6 +394,15 @@ export function TasksTable({ tasks, onDelete }: TasksTableProps) {
           task={selectedTask}
           isOpen={isEditOpen}
           onOpenChange={setIsEditOpen}
+        />
+      )}
+
+      {/* Task Verification Dialog */}
+      {selectedTask && (
+        <TaskVerificationDialog
+          task={selectedTask}
+          isOpen={isProofDialogOpen}
+          onOpenChange={setIsProofDialogOpen}
         />
       )}
     </>

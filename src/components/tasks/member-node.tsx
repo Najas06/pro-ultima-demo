@@ -20,8 +20,8 @@ export type MemberNodeData = {
 
 const MemberNode = memo(({ data }: MemberNodeData) => {
   return (
-    <DatabaseSchemaNode className="p-0 min-w-[200px]">
-      <DatabaseSchemaNodeHeader className="bg-gradient-to-r from-green-500/20 to-green-500/5">
+    <DatabaseSchemaNode className="p-0 min-w-[180px] max-w-[220px] hover:shadow-lg transition-shadow duration-200">
+      <DatabaseSchemaNodeHeader className="bg-gradient-to-r from-green-500/20 to-green-500/5 text-sm">
         <LabeledHandle
           id="member-input"
           type="target"
@@ -29,15 +29,17 @@ const MemberNode = memo(({ data }: MemberNodeData) => {
           className="absolute left-0 top-1/2 -translate-y-1/2"
           handleClassName="!absolute"
         />
-        {data.label}
+        <div className="truncate" title={data.label}>
+          {data.label}
+        </div>
       </DatabaseSchemaNodeHeader>
-      <DatabaseSchemaNodeBody>
+      <DatabaseSchemaNodeBody className="text-xs">
         {data.schema.map((entry, index) => (
-          <DatabaseSchemaTableRow key={index}>
-            <DatabaseSchemaTableCell className="pl-4 pr-2 font-medium text-muted-foreground">
+          <DatabaseSchemaTableRow key={index} className="hover:bg-muted/30">
+            <DatabaseSchemaTableCell className="pl-3 pr-1 font-medium text-muted-foreground text-xs">
               {entry.title}
             </DatabaseSchemaTableCell>
-            <DatabaseSchemaTableCell className="pr-4 pl-2 text-foreground">
+            <DatabaseSchemaTableCell className="pr-3 pl-1 text-foreground text-xs truncate" title={entry.value}>
               {entry.value}
             </DatabaseSchemaTableCell>
           </DatabaseSchemaTableRow>
