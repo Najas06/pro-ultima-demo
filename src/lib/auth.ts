@@ -60,32 +60,33 @@ export async function authenticateAdmin(email: string, password: string): Promis
 }
 
 /**
- * Authenticate a staff user
+ * Authenticate a staff user using Supabase Auth
  */
 export async function authenticateStaff(email: string, password: string): Promise<AuthUser | null> {
   const supabase = createClient();
   
   try {
-    const { data, error } = await supabase
+    // Sign in with Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (authError || !authData.user) {
+      console.error('Auth error:', authError);
+      return null;
+    }
+
+    // Fetch staff record linked to this auth user
+    const { data: staffData, error: staffError } = await supabase
       .from('staff')
       .select('*')
-      .eq('email', email)
+      .eq('auth_user_id', authData.user.id)
       .eq('is_active', true)
       .single();
 
-    if (error || !data) {
-      console.error('Staff not found:', error);
-      return null;
-    }
-
-    if (!data.password_hash) {
-      console.error('Staff has no password set');
-      return null;
-    }
-
-    const isValid = await verifyPassword(password, data.password_hash);
-    
-    if (!isValid) {
+    if (staffError || !staffData) {
+      console.error('Staff lookup error:', staffError);
       return null;
     }
 
@@ -93,14 +94,16 @@ export async function authenticateStaff(email: string, password: string): Promis
     await supabase
       .from('staff')
       .update({ last_login: new Date().toISOString() })
-      .eq('id', data.id);
+      .eq('id', staffData.id);
 
     return {
-      id: data.id,
-      email: data.email,
-      name: data.name,
-      role: 'staff',
-      staffId: data.id,
+      id: authData.user.id, // Supabase Auth ID
+      staffId: staffData.id, // Staff table ID
+      email: staffData.email,
+      name: staffData.name,
+      role: staffData.role,
+      department: staffData.department,
+      branch: staffData.branch,
     };
   } catch (error) {
     console.error('Staff authentication error:', error);

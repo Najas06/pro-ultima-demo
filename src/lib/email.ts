@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import type { Task } from '@/types';
+import type { MaintenanceRequest } from '@/types/maintenance';
 
 // Create reusable transporter
 let transporter: nodemailer.Transporter | null = null;
@@ -489,6 +490,244 @@ export async function sendDelegationAdminNotification(
   return sendEmail({
     to: adminEmail,
     subject: `Task Delegation Alert: ${task.title}`,
+    html,
+  });
+}
+
+/**
+ * Send maintenance request notification to admin
+ */
+export async function sendMaintenanceRequestEmail(
+  request: MaintenanceRequest,
+  adminEmail: string
+) {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>New Maintenance Request</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
+        <div style="max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center;">
+            <h1 style="color: #ffffff; margin: 0; font-size: 24px;">🔧 New Maintenance Request</h1>
+          </div>
+          <div style="padding: 30px;">
+            <p style="font-size: 16px; color: #333; line-height: 1.6;">Hello Admin,</p>
+            <p style="font-size: 16px; color: #333; line-height: 1.6;">
+              A new maintenance request has been submitted by <strong>${request.staff?.name || 'Staff'}</strong> from <strong>${request.branch}</strong> branch.
+            </p>
+            
+            <div style="background-color: #f8f9fa; border-left: 4px solid #667eea; padding: 20px; margin: 20px 0; border-radius: 4px;">
+              <h3 style="margin-top: 0; color: #667eea;">Request Details:</h3>
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 8px 0; color: #666; font-weight: bold;">Staff:</td>
+                  <td style="padding: 8px 0; color: #333;">${request.staff?.name || 'Unknown'} (${request.staff?.employee_id || 'N/A'})</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #666; font-weight: bold;">Branch:</td>
+                  <td style="padding: 8px 0; color: #333;">${request.branch}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #666; font-weight: bold;">Serial Number:</td>
+                  <td style="padding: 8px 0; color: #333;">${request.serial_number || 'N/A'}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #666; font-weight: bold;">Brand:</td>
+                  <td style="padding: 8px 0; color: #333;">${request.brand_name || 'N/A'}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #666; font-weight: bold;">Workstation:</td>
+                  <td style="padding: 8px 0; color: #333;">${request.workstation_number || 'N/A'}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #666; font-weight: bold;">Condition:</td>
+                  <td style="padding: 8px 0; color: #333; text-transform: capitalize;">${request.condition}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #666; font-weight: bold;">Status:</td>
+                  <td style="padding: 8px 0; color: #333; text-transform: capitalize;">${request.running_status.replace('_', ' ')}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #666; font-weight: bold;">Report Month:</td>
+                  <td style="padding: 8px 0; color: #333;">${new Date(request.report_month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</td>
+                </tr>
+              </table>
+            </div>
+
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${process.env.NEXT_PUBLIC_APP_URL}/admin/maintenance" style="display: inline-block; padding: 12px 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; border-radius: 5px; font-weight: bold;">Review Request</a>
+            </div>
+          </div>
+          <div style="background-color: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 14px;">
+            <p style="margin: 0;">This is an automated notification from ProUltima Task Manager.</p>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to: adminEmail,
+    subject: `New Maintenance Request from ${request.staff?.name || 'Staff'}`,
+    html,
+  });
+}
+
+/**
+ * Send maintenance approval notification to staff
+ */
+export async function sendMaintenanceApprovalEmail(
+  request: MaintenanceRequest,
+  staffEmail: string,
+  adminNotes?: string
+) {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Maintenance Request Approved</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
+        <div style="max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+          <div style="background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); padding: 30px; text-align: center;">
+            <h1 style="color: #ffffff; margin: 0; font-size: 24px;">✅ Maintenance Request Approved</h1>
+          </div>
+          <div style="padding: 30px;">
+            <p style="font-size: 16px; color: #333; line-height: 1.6;">Hello ${request.staff?.name || 'Staff'},</p>
+            <p style="font-size: 16px; color: #333; line-height: 1.6;">
+              Great news! Your maintenance request has been <strong style="color: #22c55e;">approved</strong> by the admin.
+            </p>
+            
+            <div style="background-color: #f0fdf4; border-left: 4px solid #22c55e; padding: 20px; margin: 20px 0; border-radius: 4px;">
+              <h3 style="margin-top: 0; color: #22c55e;">Request Details:</h3>
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 8px 0; color: #666; font-weight: bold;">Serial Number:</td>
+                  <td style="padding: 8px 0; color: #333;">${request.serial_number || 'N/A'}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #666; font-weight: bold;">Brand:</td>
+                  <td style="padding: 8px 0; color: #333;">${request.brand_name || 'N/A'}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #666; font-weight: bold;">Branch:</td>
+                  <td style="padding: 8px 0; color: #333;">${request.branch}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #666; font-weight: bold;">Status:</td>
+                  <td style="padding: 8px 0; color: #22c55e; font-weight: bold;">✓ Approved</td>
+                </tr>
+              </table>
+            </div>
+
+            ${adminNotes ? `
+              <div style="background-color: #f8f9fa; border-left: 4px solid #667eea; padding: 20px; margin: 20px 0; border-radius: 4px;">
+                <h3 style="margin-top: 0; color: #667eea;">Admin Notes:</h3>
+                <p style="color: #333; margin: 0;">${adminNotes}</p>
+              </div>
+            ` : ''}
+
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${process.env.NEXT_PUBLIC_APP_URL}/staff/maintenance" style="display: inline-block; padding: 12px 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; border-radius: 5px; font-weight: bold;">View Request</a>
+            </div>
+          </div>
+          <div style="background-color: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 14px;">
+            <p style="margin: 0;">This is an automated notification from ProUltima Task Manager.</p>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to: staffEmail,
+    subject: 'Your Maintenance Request Has Been Approved',
+    html,
+  });
+}
+
+/**
+ * Send maintenance rejection notification to staff
+ */
+export async function sendMaintenanceRejectionEmail(
+  request: MaintenanceRequest,
+  staffEmail: string,
+  rejectionReason: string
+) {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Maintenance Request Rejected</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
+        <div style="max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+          <div style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 30px; text-align: center;">
+            <h1 style="color: #ffffff; margin: 0; font-size: 24px;">❌ Maintenance Request Rejected</h1>
+          </div>
+          <div style="padding: 30px;">
+            <p style="font-size: 16px; color: #333; line-height: 1.6;">Hello ${request.staff?.name || 'Staff'},</p>
+            <p style="font-size: 16px; color: #333; line-height: 1.6;">
+              Unfortunately, your maintenance request has been <strong style="color: #ef4444;">rejected</strong> by the admin.
+            </p>
+            
+            <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 20px; margin: 20px 0; border-radius: 4px;">
+              <h3 style="margin-top: 0; color: #ef4444;">Request Details:</h3>
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 8px 0; color: #666; font-weight: bold;">Serial Number:</td>
+                  <td style="padding: 8px 0; color: #333;">${request.serial_number || 'N/A'}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #666; font-weight: bold;">Brand:</td>
+                  <td style="padding: 8px 0; color: #333;">${request.brand_name || 'N/A'}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #666; font-weight: bold;">Branch:</td>
+                  <td style="padding: 8px 0; color: #333;">${request.branch}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #666; font-weight: bold;">Status:</td>
+                  <td style="padding: 8px 0; color: #ef4444; font-weight: bold;">✗ Rejected</td>
+                </tr>
+              </table>
+            </div>
+
+            <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 20px; margin: 20px 0; border-radius: 4px;">
+              <h3 style="margin-top: 0; color: #ef4444;">Rejection Reason:</h3>
+              <p style="color: #333; margin: 0;">${rejectionReason}</p>
+            </div>
+
+            <div style="background-color: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 4px;">
+              <h3 style="margin-top: 0; color: #667eea;">Next Steps:</h3>
+              <p style="color: #333; margin: 0;">
+                Please review the rejection reason and resubmit your request with the necessary corrections, or contact your administrator for more information.
+              </p>
+            </div>
+
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${process.env.NEXT_PUBLIC_APP_URL}/staff/maintenance" style="display: inline-block; padding: 12px 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; border-radius: 5px; font-weight: bold;">View Request</a>
+            </div>
+          </div>
+          <div style="background-color: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 14px;">
+            <p style="margin: 0;">This is an automated notification from ProUltima Task Manager.</p>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to: staffEmail,
+    subject: 'Your Maintenance Request Has Been Rejected',
     html,
   });
 }

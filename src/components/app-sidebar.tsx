@@ -11,6 +11,7 @@ import {
   IconSettings,
   IconUsers,
   IconCash,
+  IconTool,
 } from "@tabler/icons-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -63,6 +64,11 @@ const data = {
       title: "Cash Book",
       url: "/admin/cashbook",
       icon: IconCash,
+    },
+    {
+      title: "Maintenance",
+      url: "/admin/maintenance",
+      icon: IconTool,
     },
   ],
   navClouds: [

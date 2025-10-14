@@ -2,8 +2,9 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
+import { debounce } from '@/lib/debounce';
 import type { TaskUpdateProof } from '@/types/cashbook';
 
 export function useTaskProofs(taskId?: string) {
@@ -38,8 +39,8 @@ export function useTaskProofs(taskId?: string) {
       if (error) throw error;
       return data || [];
     },
-    staleTime: 0,
-    refetchOnWindowFocus: true,
+    staleTime: 5 * 60 * 1000, // 5 minutes - data fresh for 5 min
+    refetchOnWindowFocus: false, // Disable - we have real-time
   });
 
   // Get pending verifications count
@@ -54,10 +55,20 @@ export function useTaskProofs(taskId?: string) {
       if (error) throw error;
       return count || 0;
     },
-    staleTime: 0,
+    staleTime: 5 * 60 * 1000, // 5 minutes - data fresh for 5 min
   });
 
-  // Real-time subscription
+  // Debounced invalidation to prevent excessive refetches
+  const debouncedInvalidate = useMemo(
+    () =>
+      debounce(() => {
+        queryClient.invalidateQueries({ queryKey: ['task-proofs'] });
+        queryClient.invalidateQueries({ queryKey: ['task-proofs-pending-count'] });
+      }, 300), // Reduced to 300ms for faster updates
+    [queryClient]
+  );
+
+  // Real-time subscription with debouncing
   useEffect(() => {
     const channel = supabase
       .channel('task-proofs-realtime')
@@ -66,25 +77,22 @@ export function useTaskProofs(taskId?: string) {
         { event: '*', schema: 'public', table: 'task_update_proofs' },
         (payload) => {
           console.log('📡 Task proof changed:', payload);
-          queryClient.invalidateQueries({ queryKey: ['task-proofs'] });
-          queryClient.invalidateQueries({ queryKey: ['task-proofs-pending-count'] });
-          window.dispatchEvent(new CustomEvent('dataUpdated'));
+          debouncedInvalidate(); // Use debounced version
         }
       )
-      .subscribe();
-
-    const handleDataUpdate = () => {
-      queryClient.invalidateQueries({ queryKey: ['task-proofs'] });
-      queryClient.invalidateQueries({ queryKey: ['task-proofs-pending-count'] });
-    };
-
-    window.addEventListener('dataUpdated', handleDataUpdate);
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Realtime connected: task_update_proofs');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Realtime error: task_update_proofs');
+        }
+      });
 
     return () => {
+      debouncedInvalidate.cancel(); // Cancel pending debounces
       supabase.removeChannel(channel);
-      window.removeEventListener('dataUpdated', handleDataUpdate);
     };
-  }, [queryClient, supabase]);
+  }, [queryClient, supabase, debouncedInvalidate]);
 
   // Create task proof mutation
   const createMutation = useMutation({
@@ -214,5 +222,6 @@ export function useTaskProofs(taskId?: string) {
     isVerifying: verifyMutation.isPending,
   };
 }
+
 
 

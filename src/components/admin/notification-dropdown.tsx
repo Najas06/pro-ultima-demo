@@ -126,3 +126,4 @@ export function NotificationDropdown({ onViewProof }: NotificationDropdownProps)
     </DropdownMenu>
   );
 }
+
