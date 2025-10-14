@@ -2,9 +2,10 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { hashPassword } from '@/lib/auth';
+import { debounce } from '@/lib/debounce';
 
 interface Staff {
   id: string;
@@ -61,12 +62,23 @@ export function useStaff() {
       if (error) throw error;
       return data || [];
     },
-    staleTime: 0, // Instant refetches
-    refetchOnWindowFocus: true,
-    refetchInterval: 1000, // Poll every second as fallback
+    staleTime: 5 * 60 * 1000, // 5 minutes - data fresh for 5 min
+    refetchOnWindowFocus: false, // Disable - we have real-time
+    // Removed refetchInterval - real-time subscriptions handle updates
   });
 
-  // Real-time subscription
+  // Debounced invalidation to prevent excessive refetches
+  const debouncedInvalidate = useMemo(
+    () =>
+      debounce(() => {
+        queryClient.invalidateQueries({ queryKey: ['staff'] });
+        window.dispatchEvent(new CustomEvent('dataUpdated'));
+        localStorage.setItem('data-sync-trigger', Date.now().toString());
+      }, 300), // Reduced to 300ms for faster updates
+    [queryClient]
+  );
+
+  // Real-time subscription with debouncing
   useEffect(() => {
     const channel = supabase
       .channel('staff-realtime')
@@ -75,17 +87,22 @@ export function useStaff() {
         { event: '*', schema: 'public', table: 'staff' },
         (payload) => {
           console.log('📡 Staff table changed:', payload);
-          queryClient.invalidateQueries({ queryKey: ['staff'] });
-          window.dispatchEvent(new CustomEvent('dataUpdated'));
-          localStorage.setItem('data-sync-trigger', Date.now().toString());
+          debouncedInvalidate(); // Use debounced version
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Realtime connected: staff');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Realtime error: staff');
+        }
+      });
 
     return () => {
+      debouncedInvalidate.cancel(); // Cancel pending debounces
       supabase.removeChannel(channel);
     };
-  }, [queryClient, supabase]);
+  }, [queryClient, supabase, debouncedInvalidate]);
 
   // Create staff mutation
   const createMutation = useMutation({
@@ -139,7 +156,35 @@ export function useStaff() {
 
       // Add password hash if password is provided
       if (updateData.password && updateData.password.trim() !== '') {
-        updateFields.password_hash = await hashPassword(updateData.password);
+        console.log('🔑 Updating staff password...', { staffId: updateData.id });
+        const password_hash = await hashPassword(updateData.password);
+        updateFields.password_hash = password_hash;
+
+        // Get staff's auth_user_id
+        const { data: staff } = await supabase
+          .from('staff')
+          .select('auth_user_id')
+          .eq('id', updateData.id)
+          .single();
+
+        // Update Supabase Auth password if auth_user_id exists
+        if (staff?.auth_user_id) {
+          console.log('🔑 Updating Supabase Auth password...', { authUserId: staff.auth_user_id });
+          const { error: authError } = await supabase.auth.admin.updateUserById(
+            staff.auth_user_id,
+            {
+              password: updateData.password,
+            }
+          );
+
+          if (authError) {
+            console.error('❌ Error updating Supabase Auth password:', authError);
+            throw new Error(`Failed to update Supabase Auth password: ${authError.message}`);
+          }
+          console.log('✅ Supabase Auth password updated successfully');
+        } else {
+          console.warn('⚠️ Staff has no auth_user_id, skipping Supabase Auth password update');
+        }
       }
 
       const { data, error } = await supabase

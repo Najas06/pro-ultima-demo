@@ -10,11 +10,22 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            // Set staleTime to 0 for real-time updates to work properly
-            // This ensures data is always considered stale and will refetch
-            staleTime: 0, // Always consider data stale for real-time sync
-            gcTime: 10 * 60 * 1000, // 10 minutes
+            // Data is considered fresh for 5 minutes
+            staleTime: 5 * 60 * 1000,
+            
+            // Disable refetch on window focus since we have real-time subscriptions
             refetchOnWindowFocus: false,
+            
+            // Disable refetch on reconnect since we have real-time subscriptions
+            refetchOnReconnect: false,
+            
+            // Disable refetch on mount to prevent excessive re-renders
+            refetchOnMount: false,
+            
+            // Cache data for 10 minutes
+            gcTime: 10 * 60 * 1000,
+            
+            // Reduce retries to save bandwidth
             retry: (failureCount, error) => {
               // Don't retry on 4xx errors
               if (error instanceof Error && 'status' in error) {
@@ -23,7 +34,7 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
                   return false;
                 }
               }
-              return failureCount < 3;
+              return failureCount < 1; // Reduced from 3 to 1
             },
           },
           mutations: {

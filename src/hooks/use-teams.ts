@@ -2,8 +2,9 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
+import { debounce } from '@/lib/debounce';
 
 interface Team {
   id: string;
@@ -46,9 +47,9 @@ export function useTeams() {
       if (error) throw error;
       return data || [];
     },
-    staleTime: 0, // Instant refetches
-    refetchOnWindowFocus: true,
-    refetchInterval: 1000, // Poll every second as fallback
+    staleTime: 5 * 60 * 1000, // 5 minutes - data fresh for 5 min
+    refetchOnWindowFocus: false, // Disable - we have real-time
+    // Removed refetchInterval - real-time subscriptions handle updates
   });
 
   // Fetch team members
@@ -65,7 +66,19 @@ export function useTeams() {
     staleTime: 0, // Instant refetches
   });
 
-  // Real-time subscription
+  // Debounced invalidation to prevent excessive refetches
+  const debouncedInvalidate = useMemo(
+    () =>
+      debounce(() => {
+        queryClient.invalidateQueries({ queryKey: ['teams'] });
+        queryClient.invalidateQueries({ queryKey: ['team-members'] });
+        window.dispatchEvent(new CustomEvent('dataUpdated'));
+        localStorage.setItem('data-sync-trigger', Date.now().toString());
+      }, 300), // Reduced to 300ms for faster updates
+    [queryClient]
+  );
+
+  // Real-time subscription with debouncing
   useEffect(() => {
     const teamsChannel = supabase
       .channel('teams-realtime')
@@ -74,12 +87,16 @@ export function useTeams() {
         { event: '*', schema: 'public', table: 'teams' },
         (payload) => {
           console.log('📡 Teams table changed:', payload);
-          queryClient.invalidateQueries({ queryKey: ['teams'] });
-          window.dispatchEvent(new CustomEvent('dataUpdated'));
-          localStorage.setItem('data-sync-trigger', Date.now().toString());
+          debouncedInvalidate(); // Use debounced version
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Realtime connected: teams');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Realtime error: teams');
+        }
+      });
 
     const membersChannel = supabase
       .channel('team-members-realtime')
@@ -88,19 +105,23 @@ export function useTeams() {
         { event: '*', schema: 'public', table: 'team_members' },
         (payload) => {
           console.log('📡 Team members table changed:', payload);
-          queryClient.invalidateQueries({ queryKey: ['team-members'] });
-          queryClient.invalidateQueries({ queryKey: ['teams'] });
-          window.dispatchEvent(new CustomEvent('dataUpdated'));
-          localStorage.setItem('data-sync-trigger', Date.now().toString());
+          debouncedInvalidate(); // Use debounced version
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Realtime connected: team_members');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Realtime error: team_members');
+        }
+      });
 
     return () => {
+      debouncedInvalidate.cancel(); // Cancel pending debounces
       supabase.removeChannel(teamsChannel);
       supabase.removeChannel(membersChannel);
     };
-  }, [queryClient, supabase]);
+  }, [queryClient, supabase, debouncedInvalidate]);
 
   // Create team mutation
   const createMutation = useMutation({

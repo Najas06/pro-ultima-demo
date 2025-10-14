@@ -2,8 +2,9 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
+import { debounce } from '@/lib/debounce';
 import type { Task, TaskStatus, TaskPriority, TaskRepeatConfig } from '@/types';
 
 interface TaskFormData {
@@ -37,12 +38,24 @@ export function useTasks() {
       if (error) throw error;
       return data || [];
     },
-    staleTime: 0, // Instant refetches
-    refetchOnWindowFocus: true,
-    refetchInterval: 1000, // Poll every second as fallback
+    staleTime: 5 * 60 * 1000, // 5 minutes - data fresh for 5 min
+    refetchOnWindowFocus: false, // Disable - we have real-time
+    // Removed refetchInterval - real-time subscriptions handle updates
   });
 
-  // Real-time subscription
+  // Debounced invalidation to prevent excessive refetches
+  const debouncedInvalidate = useMemo(
+    () =>
+      debounce(() => {
+        queryClient.invalidateQueries({ queryKey: ['tasks'] });
+        // Trigger cross-tab sync
+        window.dispatchEvent(new CustomEvent('dataUpdated'));
+        localStorage.setItem('data-sync-trigger', Date.now().toString());
+      }, 300), // Reduced to 300ms for faster updates
+    [queryClient]
+  );
+
+  // Real-time subscription with debouncing
   useEffect(() => {
     const channel = supabase
       .channel('tasks-realtime')
@@ -51,10 +64,7 @@ export function useTasks() {
         { event: '*', schema: 'public', table: 'tasks' },
         (payload) => {
           console.log('📡 Tasks table changed:', payload);
-          queryClient.invalidateQueries({ queryKey: ['tasks'] });
-          // Trigger cross-tab sync
-          window.dispatchEvent(new CustomEvent('dataUpdated'));
-          localStorage.setItem('data-sync-trigger', Date.now().toString());
+          debouncedInvalidate(); // Use debounced version
         }
       )
       .on(
@@ -62,17 +72,22 @@ export function useTasks() {
         { event: '*', schema: 'public', table: 'task_assignments' },
         (payload) => {
           console.log('📡 Task assignments changed:', payload);
-          queryClient.invalidateQueries({ queryKey: ['tasks'] });
-          window.dispatchEvent(new CustomEvent('dataUpdated'));
-          localStorage.setItem('data-sync-trigger', Date.now().toString());
+          debouncedInvalidate(); // Use debounced version
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Realtime connected: tasks');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Realtime error: tasks');
+        }
+      });
 
     return () => {
+      debouncedInvalidate.cancel(); // Cancel pending debounces
       supabase.removeChannel(channel);
     };
-  }, [queryClient, supabase]);
+  }, [queryClient, supabase, debouncedInvalidate]);
 
   // Create task mutation
   const createMutation = useMutation({

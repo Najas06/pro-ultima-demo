@@ -6,6 +6,8 @@ export interface AuthUser {
   name: string;
   role: UserRole;
   staffId?: string; // Only for staff users
+  department?: string; // Only for staff users
+  branch?: string; // Only for staff users
 }
 
 export interface Admin {

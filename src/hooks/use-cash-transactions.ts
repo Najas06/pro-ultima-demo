@@ -2,8 +2,9 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
+import { debounce } from '@/lib/debounce';
 import type { CashTransaction, CashTransactionFormData, ExpenseCategory, BranchOpeningBalance, CashBookSummary } from '@/types/cashbook';
 
 export function useCashTransactions(branch?: string, startDate?: string, endDate?: string) {
@@ -44,8 +45,8 @@ export function useCashTransactions(branch?: string, startDate?: string, endDate
       if (error) throw error;
       return data || [];
     },
-    staleTime: 0,
-    refetchOnWindowFocus: true,
+    staleTime: 5 * 60 * 1000, // 5 minutes - data fresh for 5 min
+    refetchOnWindowFocus: false, // Disable - we have real-time
   });
 
   // Fetch expense categories
@@ -92,7 +93,16 @@ export function useCashTransactions(branch?: string, startDate?: string, endDate
 
   summary.closing_balance = summary.opening_balance + summary.total_cash_in - summary.total_cash_out;
 
-  // Real-time subscription
+  // Debounced invalidation to prevent excessive refetches
+  const debouncedInvalidate = useMemo(
+    () =>
+      debounce(() => {
+        queryClient.invalidateQueries({ queryKey: ['cash-transactions'] });
+      }, 300), // Reduced to 300ms for faster updates
+    [queryClient]
+  );
+
+  // Real-time subscription with debouncing
   useEffect(() => {
     const channel = supabase
       .channel('cash-transactions-realtime')
@@ -101,23 +111,22 @@ export function useCashTransactions(branch?: string, startDate?: string, endDate
         { event: '*', schema: 'public', table: 'cash_transactions' },
         (payload) => {
           console.log('📡 Cash transaction changed:', payload);
-          queryClient.invalidateQueries({ queryKey: ['cash-transactions'] });
-          window.dispatchEvent(new CustomEvent('dataUpdated'));
+          debouncedInvalidate(); // Use debounced version
         }
       )
-      .subscribe();
-
-    const handleDataUpdate = () => {
-      queryClient.invalidateQueries({ queryKey: ['cash-transactions'] });
-    };
-
-    window.addEventListener('dataUpdated', handleDataUpdate);
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Realtime connected: cash_transactions');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Realtime error: cash_transactions');
+        }
+      });
 
     return () => {
+      debouncedInvalidate.cancel(); // Cancel pending debounces
       supabase.removeChannel(channel);
-      window.removeEventListener('dataUpdated', handleDataUpdate);
     };
-  }, [queryClient, supabase]);
+  }, [queryClient, supabase, debouncedInvalidate]);
 
   // Create transaction mutation
   const createMutation = useMutation({
@@ -211,5 +220,6 @@ export function useCashTransactions(branch?: string, startDate?: string, endDate
     isDeleting: deleteMutation.isPending,
   };
 }
+
 
 
