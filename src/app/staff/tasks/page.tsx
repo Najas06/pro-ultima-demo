@@ -141,6 +141,7 @@ export default function StaffTasksPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Task #</TableHead>
                     <TableHead>Task</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Priority</TableHead>
@@ -149,18 +150,36 @@ export default function StaffTasksPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredTasks.map((task) => (
-                    <TableRow key={task.id}>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{task.title}</div>
-                          {task.description && (
-                            <div className="text-sm text-muted-foreground line-clamp-1 max-w-md">
-                              {task.description}
-                            </div>
-                          )}
-                        </div>
-                      </TableCell>
+                  {filteredTasks.map((task) => {
+                    // Check if current user delegated this task
+                    const isDelegatedByMe = task.delegated_from_staff_id === user?.staffId;
+                    const currentAssignee = task.assigned_staff_ids?.find(id => id !== user?.staffId);
+                    const currentAssigneeName = currentAssignee ? staff.find(s => s.id === currentAssignee)?.name : null;
+                    
+                    return (
+                      <TableRow key={task.id}>
+                        <TableCell>
+                          <div className="font-mono text-sm font-medium text-muted-foreground">
+                            {task.task_no || 'N/A'}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{task.title}</div>
+                            {task.description && (
+                              <div className="text-sm text-muted-foreground line-clamp-1 max-w-md">
+                                {task.description}
+                              </div>
+                            )}
+                            {isDelegatedByMe && currentAssigneeName && (
+                              <div className="mt-1">
+                                <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
+                                  Delegated to {currentAssigneeName}
+                                </Badge>
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
                       <TableCell>
                         <Badge className={getStatusColor(task.status)}>
                           {task.status.replace('_', ' ')}
@@ -188,7 +207,8 @@ export default function StaffTasksPage() {
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>

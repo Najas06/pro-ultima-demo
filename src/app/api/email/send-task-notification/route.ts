@@ -4,7 +4,9 @@ import {
   sendTaskAssignmentEmail, 
   sendTaskUpdateEmail, 
   sendTaskDelegationEmail,
-  sendDelegationAdminNotification 
+  sendDelegationAdminNotification,
+  sendTaskRejectionEmail,
+  sendTaskApprovalEmail
 } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
@@ -17,7 +19,9 @@ export async function POST(request: NextRequest) {
       type, 
       delegatedBy, 
       adminEmail, 
-      changes 
+      changes,
+      rejectedBy,
+      approvedBy
     } = await request.json();
 
     if (!taskId) {
@@ -98,6 +102,26 @@ export async function POST(request: NextRequest) {
           );
         }
         await sendDelegationAdminNotification(task, delegatedBy, adminEmail);
+        break;
+
+      case 'rejection':
+        if (!staffEmail || !staffName) {
+          return NextResponse.json(
+            { error: 'Missing staff email or name for rejection' },
+            { status: 400 }
+          );
+        }
+        await sendTaskRejectionEmail(task, staffEmail, staffName, rejectedBy || 'Admin');
+        break;
+
+      case 'approval':
+        if (!staffEmail || !staffName) {
+          return NextResponse.json(
+            { error: 'Missing staff email or name for approval' },
+            { status: 400 }
+          );
+        }
+        await sendTaskApprovalEmail(task, staffEmail, staffName, approvedBy || 'Admin');
         break;
 
       default:

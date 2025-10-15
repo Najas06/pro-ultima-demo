@@ -92,6 +92,22 @@ export function useTasks() {
   // Create task mutation
   const createMutation = useMutation({
     mutationFn: async (formData: TaskFormData) => {
+      // 1. Get last task number to auto-generate next one
+      const { data: lastTask } = await supabase
+        .from('tasks')
+        .select('task_no')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      // 2. Generate next task number
+      let nextTaskNo = 'T001';
+      if (lastTask?.task_no) {
+        const lastNum = parseInt(lastTask.task_no.replace('T', ''));
+        nextTaskNo = `T${String(lastNum + 1).padStart(3, '0')}`;
+      }
+
+      // 3. Insert task with auto-generated task number
       const { data, error } = await supabase
         .from('tasks')
         .insert({
@@ -107,6 +123,7 @@ export function useTasks() {
           is_repeated: formData.is_repeated || false,
           repeat_config: formData.repeat_config,
           support_files: formData.support_files || [],
+          task_no: nextTaskNo, // Auto-generated task number
         })
         .select()
         .single();
@@ -290,6 +307,16 @@ export function useTasks() {
     },
   });
 
+  // Approve task mutation
+  const approveTask = (taskId: string) => {
+    updateMutation.mutate({ id: taskId, status: 'completed' });
+  };
+
+  // Reject task mutation - change back to in_progress so staff can redo
+  const rejectTask = (taskId: string) => {
+    updateMutation.mutate({ id: taskId, status: 'in_progress' });
+  };
+
   return {
     tasks,
     isLoading,
@@ -298,6 +325,8 @@ export function useTasks() {
     createTask: createMutation.mutate,
     updateTask: updateMutation.mutate,
     deleteTask: deleteMutation.mutate,
+    approveTask,
+    rejectTask,
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,

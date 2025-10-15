@@ -62,13 +62,18 @@ export function DelegateTaskDialog({ task, availableStaff }: DelegateTaskDialogP
 
       if (delegationError) throw delegationError;
 
-      // 2. Add new staff to task's assigned_staff_ids
+      // 2. Update task: remove current user, add new staff, track delegation
       const currentAssignedStaff = task.assigned_staff_ids || [];
-      const updatedAssignedStaff = [...currentAssignedStaff, selectedStaffId];
+      const updatedAssignedStaff = currentAssignedStaff.filter(id => id !== user?.staffId);
+      updatedAssignedStaff.push(selectedStaffId);
 
       const { error: updateError } = await supabase
         .from('tasks')
-        .update({ assigned_staff_ids: updatedAssignedStaff })
+        .update({ 
+          assigned_staff_ids: updatedAssignedStaff,
+          delegated_from_staff_id: user?.staffId,
+          delegated_by_staff_name: user?.name
+        })
         .eq('id', task.id);
 
       if (updateError) throw updateError;

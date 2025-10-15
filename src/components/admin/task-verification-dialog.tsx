@@ -14,13 +14,17 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { CheckCircle, XCircle, Loader2, ZoomIn, Clock, CheckCircle2, X } from 'lucide-react';
+import { CheckCircle, XCircle, ZoomIn, Clock, CheckCircle2, X, FileCheck2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Task } from '@/types';
 import type { TaskUpdateProof } from '@/types/cashbook';
 import { format } from 'date-fns';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useTasks } from '@/hooks/use-tasks';
+import { createClient } from '@/lib/supabase/client';
 
 interface TaskVerificationDialogProps {
   task: Task;
@@ -30,10 +34,11 @@ interface TaskVerificationDialogProps {
 
 export function TaskVerificationDialog({ task, isOpen, onOpenChange }: TaskVerificationDialogProps) {
   const { user } = useAuth();
-  const { proofs, verifyProof, isVerifying } = useTaskProofs(task.id);
-  const [verificationNotes, setVerificationNotes] = useState('');
+  const { proofs } = useTaskProofs(task.id);
+  const { approveTask, rejectTask } = useTasks();
   const [showFullImage, setShowFullImage] = useState(false);
   const [selectedProof, setSelectedProof] = useState<TaskUpdateProof | null>(null);
+  const supabase = createClient();
 
   // Group proofs by status
   const { pendingProofs, verifiedProofs, rejectedProofs } = useMemo(() => {
@@ -45,48 +50,126 @@ export function TaskVerificationDialog({ task, isOpen, onOpenChange }: TaskVerif
     };
   }, [proofs, task.id]);
 
-  const handleVerify = (proof: TaskUpdateProof, isVerified: boolean) => {
-    if (!user?.id) {
-      toast.error('Admin not authenticated');
-      return;
+  const handleApproveTask = async () => {
+    approveTask(task.id);
+    
+    // Send email notification to assigned staff
+    if (task.assigned_staff_ids && task.assigned_staff_ids.length > 0) {
+      try {
+        const { data: staffData } = await supabase
+          .from('staff')
+          .select('email, name')
+          .in('id', task.assigned_staff_ids);
+
+        if (staffData && staffData.length > 0) {
+          for (const staff of staffData) {
+            await fetch('/api/email/send-task-notification', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                taskId: task.id,
+                staffEmail: staff.email,
+                staffName: staff.name,
+                type: 'approval',
+                approvedBy: user?.name,
+              }),
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Email notification failed:', error);
+        // Don't fail the whole operation if email fails
+      }
     }
+    
+    toast.success('Task approved successfully!');
+    onOpenChange(false);
+  };
 
-    verifyProof({
-      id: proof.id,
-      is_verified: isVerified,
-      verified_by: user.id,
-      verification_notes: verificationNotes || undefined,
-    });
+  const handleRejectTask = async () => {
+    rejectTask(task.id);
+    
+    // Send email notification to assigned staff
+    if (task.assigned_staff_ids && task.assigned_staff_ids.length > 0) {
+      try {
+        const { data: staffData } = await supabase
+          .from('staff')
+          .select('email, name')
+          .in('id', task.assigned_staff_ids);
 
-    setVerificationNotes('');
+        if (staffData && staffData.length > 0) {
+          for (const staff of staffData) {
+            await fetch('/api/email/send-task-notification', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                taskId: task.id,
+                staffEmail: staff.email,
+                staffName: staff.name,
+                type: 'rejection',
+                rejectedBy: user?.name,
+              }),
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Email notification failed:', error);
+        // Don't fail the whole operation if email fails
+      }
+    }
+    
+    toast.success('Task rejected! Status changed to "In Progress" and staff notified.');
+    onOpenChange(false);
   };
 
   const getStatusBadge = (proof: TaskUpdateProof) => {
     if (proof.is_verified === null) {
-      return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800"><Clock className="h-3 w-3 mr-1" />Pending</Badge>;
+      return (
+        <Badge variant="outline" className="gap-1">
+          <Clock className="h-3 w-3" />
+          Pending
+        </Badge>
+      );
     } else if (proof.is_verified) {
-      return <Badge variant="default" className="bg-green-100 text-green-800"><CheckCircle2 className="h-3 w-3 mr-1" />Verified</Badge>;
+      return (
+        <Badge variant="default" className="gap-1 bg-green-600">
+          <CheckCircle2 className="h-3 w-3" />
+          Verified
+        </Badge>
+      );
     } else {
-      return <Badge variant="destructive" className="bg-red-100 text-red-800"><X className="h-3 w-3 mr-1" />Rejected</Badge>;
+      return (
+        <Badge variant="destructive" className="gap-1">
+          <XCircle className="h-3 w-3" />
+          Rejected
+        </Badge>
+      );
     }
   };
 
-  const renderProofCard = (proof: TaskUpdateProof, showActions = false) => (
-    <Card key={proof.id} className="mb-4">
+  const renderProofCard = (proof: TaskUpdateProof) => (
+    <Card key={proof.id} className="overflow-hidden hover:shadow-md transition-shadow">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="text-sm">{proof.staff?.name || 'Unknown Staff'}</CardTitle>
-            <CardDescription className="text-xs">
-              {format(new Date(proof.created_at), 'PPp')} • Status: {proof.status.replace('_', ' ')}
-            </CardDescription>
+          <div className="flex items-center gap-3">
+            <Avatar className="h-9 w-9">
+              <AvatarFallback className="bg-primary/10 text-primary font-medium">
+                {(proof.staff?.name || 'U').charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <CardTitle className="text-sm font-medium">{proof.staff?.name || 'Unknown Staff'}</CardTitle>
+              <CardDescription className="text-xs">
+                {format(new Date(proof.created_at), 'PPp')}
+              </CardDescription>
+            </div>
           </div>
           {getStatusBadge(proof)}
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Proof Image */}
-        <div className="relative border rounded-lg overflow-hidden bg-black">
+      <CardContent className="space-y-3">
+        {/* Clean image container */}
+        <div className="relative rounded-lg border bg-muted/30 overflow-hidden group">
           <img
             src={proof.proof_image_url}
             alt="Task proof"
@@ -99,102 +182,49 @@ export function TaskVerificationDialog({ task, isOpen, onOpenChange }: TaskVerif
           <Button
             variant="secondary"
             size="sm"
-            className="absolute bottom-2 right-2"
+            className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
             onClick={() => {
               setSelectedProof(proof);
               setShowFullImage(true);
             }}
           >
-            <ZoomIn className="mr-2 h-4 w-4" />
-            View Full Size
+            <ZoomIn className="h-4 w-4 mr-2" />
+            View
           </Button>
         </div>
-
-        {/* Staff Notes */}
+        
+        {/* Clean notes section */}
         {proof.notes && (
-          <div className="space-y-2">
-            <Label className="text-sm">Staff Notes</Label>
-            <div className="p-3 bg-muted rounded-lg">
-              <p className="text-sm">{proof.notes}</p>
-            </div>
+          <div className="rounded-lg border bg-muted/50 p-3">
+            <Label className="text-sm font-medium mb-2 block">Staff Notes</Label>
+            <p className="text-sm text-muted-foreground">{proof.notes}</p>
           </div>
         )}
 
         {/* Verification Details */}
         {proof.is_verified !== null && (
-          <div className="space-y-2">
-            <Label className="text-sm">Verification Details</Label>
-            <div className="p-3 border rounded-lg space-y-2">
-              <div className="flex items-center gap-2">
-                {proof.is_verified ? (
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                ) : (
-                  <XCircle className="h-4 w-4 text-red-600" />
-                )}
-                <span className="text-sm font-medium">
-                  {proof.is_verified ? 'Verified' : 'Rejected'} by {proof.admin?.name || 'Admin'}
-                </span>
+          <div className="rounded-lg border bg-muted/30 p-3">
+            <Label className="text-sm font-medium mb-2 block">Verification Details</Label>
+            <div className="flex items-center gap-2">
+              {proof.is_verified ? (
+                <CheckCircle className="h-4 w-4 text-green-600" />
+              ) : (
+                <XCircle className="h-4 w-4 text-red-600" />
+              )}
+              <span className="text-sm font-medium">
+                {proof.is_verified ? 'Verified' : 'Rejected'} by {proof.admin?.name || 'Admin'}
+              </span>
+            </div>
+            {proof.verified_at && (
+              <p className="text-xs text-muted-foreground mt-1">
+                On {format(new Date(proof.verified_at), 'PPp')}
+              </p>
+            )}
+            {proof.verification_notes && (
+              <div className="mt-2 p-2 bg-background rounded border">
+                <p className="text-xs text-muted-foreground">{proof.verification_notes}</p>
               </div>
-              {proof.verified_at && (
-                <p className="text-xs text-muted-foreground">
-                  On {format(new Date(proof.verified_at), 'PPp')}
-                </p>
-              )}
-              {proof.verification_notes && (
-                <div className="mt-2 p-2 bg-muted rounded">
-                  <p className="text-xs">{proof.verification_notes}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Verification Actions (only for pending proofs) */}
-        {showActions && proof.is_verified === null && (
-          <div className="space-y-3 border-t pt-4">
-            <div className="space-y-2">
-              <Label htmlFor="verification_notes" className="text-sm">Verification Notes (Optional)</Label>
-              <Textarea
-                id="verification_notes"
-                value={verificationNotes}
-                onChange={(e) => setVerificationNotes(e.target.value)}
-                placeholder="Add any comments about this verification..."
-                rows={2}
-                className="text-sm"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="destructive"
-                size="sm"
-                onClick={() => handleVerify(proof, false)}
-                disabled={isVerifying}
-              >
-                {isVerifying ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <XCircle className="mr-2 h-4 w-4" />
-                )}
-                Reject
-              </Button>
-              <Button
-                type="button"
-                variant="default"
-                size="sm"
-                className="bg-green-600 hover:bg-green-700"
-                onClick={() => handleVerify(proof, true)}
-                disabled={isVerifying}
-              >
-                {isVerifying ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                )}
-                Verify
-              </Button>
-            </div>
+            )}
           </div>
         )}
       </CardContent>
@@ -204,60 +234,137 @@ export function TaskVerificationDialog({ task, isOpen, onOpenChange }: TaskVerif
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Task Proof Verification</DialogTitle>
-            <DialogDescription>
-              Review and verify proof images for task: "{task.title}"
-            </DialogDescription>
+        <DialogContent className="max-w-3xl w-[92vw] max-h-[88vh] overflow-hidden flex flex-col">
+          <DialogHeader className="px-6 py-2 border-b">
+            <div className="flex items-start gap-3">
+              <div className="mt-1 p-2 rounded-lg bg-primary/10">
+                <FileCheck2 className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <DialogTitle className="text-xl font-semibold">Task Verification</DialogTitle>
+                <DialogDescription className="text-sm mt-1">
+                  Review proofs for: <span className="font-medium text-foreground">{task.title}</span>
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
+          
+          <div className="flex-1 overflow-y-auto">
+            <Tabs defaultValue="pending" className="w-full">
+              <TabsList className="w-full justify-start border-b rounded-none h-auto p-0 bg-transparent">
+                <TabsTrigger 
+                  value="pending" 
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+                >
+                  <Clock className="h-4 w-4 mr-2" />
+                  Pending
+                  {pendingProofs.length > 0 && (
+                    <Badge variant="secondary" className="ml-2">{pendingProofs.length}</Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="verified" 
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Verified
+                  {verifiedProofs.length > 0 && (
+                    <Badge variant="secondary" className="ml-2">{verifiedProofs.length}</Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="rejected" 
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Rejected
+                  {rejectedProofs.length > 0 && (
+                    <Badge variant="secondary" className="ml-2">{rejectedProofs.length}</Badge>
+                  )}
+                </TabsTrigger>
+              </TabsList>
 
-          <Tabs defaultValue="pending" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="pending" className="flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                Pending ({pendingProofs.length})
-              </TabsTrigger>
-              <TabsTrigger value="verified" className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4" />
-                Verified ({verifiedProofs.length})
-              </TabsTrigger>
-              <TabsTrigger value="rejected" className="flex items-center gap-2">
-                <X className="h-4 w-4" />
-                Rejected ({rejectedProofs.length})
-              </TabsTrigger>
-            </TabsList>
+              <TabsContent value="pending" className="space-y-4 mt-6 px-6">
+                {pendingProofs.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <div className="rounded-full bg-muted p-3 mb-4">
+                      <Clock className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                    <h3 className="font-semibold text-base mb-1">No Pending Proofs</h3>
+                    <p className="text-sm text-muted-foreground max-w-sm">
+                      All proofs have been reviewed or no proofs have been submitted yet.
+                    </p>
+                  </div>
+                ) : (
+                  pendingProofs.map(proof => renderProofCard(proof))
+                )}
+              </TabsContent>
 
-            <TabsContent value="pending" className="space-y-4">
-              {pendingProofs.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  No pending proofs to review
+              <TabsContent value="verified" className="space-y-4 mt-6 px-6">
+                {verifiedProofs.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <div className="rounded-full bg-muted p-3 mb-4">
+                      <CheckCircle2 className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                    <h3 className="font-semibold text-base mb-1">No Verified Proofs</h3>
+                    <p className="text-sm text-muted-foreground max-w-sm">
+                      No proofs have been verified yet.
+                    </p>
+                  </div>
+                ) : (
+                  verifiedProofs.map(proof => renderProofCard(proof))
+                )}
+              </TabsContent>
+
+              <TabsContent value="rejected" className="space-y-4 mt-6 px-6">
+                {rejectedProofs.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <div className="rounded-full bg-muted p-3 mb-4">
+                      <X className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                    <h3 className="font-semibold text-base mb-1">No Rejected Proofs</h3>
+                    <p className="text-sm text-muted-foreground max-w-sm">
+                      No proofs have been rejected yet.
+                    </p>
+                  </div>
+                ) : (
+                  rejectedProofs.map(proof => renderProofCard(proof))
+                )}
+              </TabsContent>
+            </Tabs>
+          </div>
+
+          {/* Task Approval/Rejection Actions */}
+          {task.status === 'completed' && (
+            <>
+              <Separator  />
+              <div className="px-6 ">
+                <div className="rounded-lg border bg-card p-6">
+                  <div className="space-y-4">
+                   
+                    
+                    <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                      <Button
+                        variant="destructive"
+                        onClick={handleRejectTask}
+                        className="flex-1 sm:flex-initial"
+                      >
+                        <XCircle className="mr-2 h-4 w-4" />
+                        Reject & Return to Staff
+                      </Button>
+                      <Button
+                        onClick={handleApproveTask}
+                        className="flex-1 sm:flex-initial"
+                      >
+                        <CheckCircle className="mr-2 h-4 w-4" />
+                        Approve Task
+                      </Button>
+                    </div>
+                  </div>
                 </div>
-              ) : (
-                pendingProofs.map(proof => renderProofCard(proof, true))
-              )}
-            </TabsContent>
-
-            <TabsContent value="verified" className="space-y-4">
-              {verifiedProofs.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  No verified proofs yet
-                </div>
-              ) : (
-                verifiedProofs.map(proof => renderProofCard(proof, false))
-              )}
-            </TabsContent>
-
-            <TabsContent value="rejected" className="space-y-4">
-              {rejectedProofs.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  No rejected proofs
-                </div>
-              ) : (
-                rejectedProofs.map(proof => renderProofCard(proof, false))
-              )}
-            </TabsContent>
-          </Tabs>
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 

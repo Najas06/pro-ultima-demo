@@ -732,3 +732,125 @@ export async function sendMaintenanceRejectionEmail(
   });
 }
 
+/**
+ * Send task rejection notification to staff
+ */
+export async function sendTaskRejectionEmail(
+  task: Task,
+  staffEmail: string,
+  staffName: string,
+  rejectedBy: string
+) {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; text-align: center; }
+          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+          .task-info { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+          .button { display: inline-block; padding: 12px 24px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; margin-top: 20px; }
+          .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1 style="margin: 0;">❌ Task Rejected</h1>
+          </div>
+          <div class="content">
+            <p>Hi ${staffName},</p>
+            
+            <p><strong>${rejectedBy} rejected your task: ${task.title}</strong></p>
+            
+            <div class="task-info">
+              <p style="margin: 10px 0;"><strong>Your task is back in progress</strong></p>
+              <p style="margin: 10px 0;">Priority: ${task.priority.toUpperCase()}</p>
+              ${task.due_date ? `<p style="margin: 10px 0;">Due Date: ${new Date(task.due_date).toLocaleDateString('en-US', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+              })}</p>` : ''}
+            </div>
+            
+            <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/staff/tasks" class="button">
+              View Task
+            </a>
+            
+            <div class="footer">
+              <p>This is an automated email from ProUltima Task Manager.</p>
+            </div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to: staffEmail,
+    subject: `Task Rejected: ${task.title}`,
+    html,
+  });
+}
+
+/**
+ * Send task approval notification to staff
+ */
+export async function sendTaskApprovalEmail(
+  task: Task,
+  staffEmail: string,
+  staffName: string,
+  approvedBy: string
+) {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; text-align: center; }
+          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+          .task-info { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+          .button { display: inline-block; padding: 12px 24px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; margin-top: 20px; }
+          .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1 style="margin: 0;">✅ Task Approved</h1>
+          </div>
+          <div class="content">
+            <p>Hi ${staffName},</p>
+            
+            <p><strong>${approvedBy} approved your task: ${task.title}</strong></p>
+            
+            <div class="task-info">
+              <p style="margin: 10px 0;"><strong>Task completed successfully</strong></p>
+              <p style="margin: 10px 0;">Priority: ${task.priority.toUpperCase()}</p>
+            </div>
+            
+            <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/staff/tasks" class="button">
+              View Tasks
+            </a>
+            
+            <div class="footer">
+              <p>This is an automated email from ProUltima Task Manager.</p>
+            </div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to: staffEmail,
+    subject: `Task Approved: ${task.title}`,
+    html,
+  });
+}
+

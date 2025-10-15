@@ -17,6 +17,9 @@ export interface Task {
   is_repeated: boolean;
   repeat_config?: TaskRepeatConfig;
   support_files?: string[];
+  task_no?: string; // Task number from database (e.g., "T002")
+  delegated_from_staff_id?: string | null; // Track original staff who delegated
+  delegated_by_staff_name?: string; // For display purposes
 }
 
 export interface TaskAssignment {
