@@ -6,6 +6,7 @@ export interface AuthUser {
   name: string;
   role: UserRole;
   staffId?: string; // Only for staff users
+  jobRole?: string; // Job role from database (technician, manager, etc.) - only for staff users
   department?: string; // Only for staff users
   branch?: string; // Only for staff users
   profileImage?: string; // Profile image URL

@@ -22,9 +22,9 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
     }
   }, [user?.staffId, todayAttendance, markLogin]);
 
-  // Redirect if not authenticated or not staff
+  // Redirect if not authenticated or if admin (only non-admin users can access staff routes)
   useEffect(() => {
-    if (!isLoading && (!user || user.role !== 'staff')) {
+    if (!isLoading && (!user || user.role === 'admin')) {
       router.push('/login');
     }
   }, [user, isLoading, router]);

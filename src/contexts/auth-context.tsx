@@ -47,19 +47,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       toast.success(`Welcome back, ${authenticatedUser.name}!`);
 
-      // Redirect based on role
+      // Simple navigation logic
+      console.log('🔐 User authenticated:', authenticatedUser);
+      console.log('🔐 User role:', authenticatedUser.role);
+      
       if (authenticatedUser.role === 'admin') {
-        router.push('/admin/dashboard');
-        // Fallback navigation in case router.push fails
-        setTimeout(() => {
-          window.location.href = '/admin/dashboard';
-        }, 100);
+        console.log('🔐 Admin login - navigating to admin dashboard');
+        window.location.href = '/admin/dashboard';
       } else {
-        router.push('/staff/dashboard');
-        // Fallback navigation in case router.push fails
-        setTimeout(() => {
-          window.location.href = '/staff/dashboard';
-        }, 100);
+        console.log('🔐 Staff login - navigating to staff dashboard');
+        window.location.href = '/staff/dashboard';
       }
     } catch (error) {
       console.error('Login error:', error);

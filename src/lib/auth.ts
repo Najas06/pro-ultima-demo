@@ -98,7 +98,7 @@ export async function authenticateStaff(email: string, password: string): Promis
       staffId: staffData.id,
       email: staffData.email,
       name: staffData.name,
-      role: staffData.role,
+      role: staffData.role, // Use actual role from database (project-manager, etc.)
       department: staffData.department,
       branch: staffData.branch,
       profileImage: staffData.profile_image_url || undefined,
@@ -146,25 +146,19 @@ export function getCurrentUser(): AuthUser | null {
 }
 
 /**
- * Save user to localStorage and cookies
+ * Save user to localStorage
  */
 export function saveUser(user: AuthUser): void {
   if (typeof window === 'undefined') return;
   localStorage.setItem('auth_user', JSON.stringify(user));
-  
-  // Also set cookie for middleware access
-  document.cookie = `auth_user=${encodeURIComponent(JSON.stringify(user))}; path=/; max-age=86400`; // 24 hours
 }
 
 /**
- * Remove user from localStorage and cookies
+ * Remove user from localStorage
  */
 export function clearUser(): void {
   if (typeof window === 'undefined') return;
   localStorage.removeItem('auth_user');
-  
-  // Also clear cookie
-  document.cookie = 'auth_user=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
 }
 
 /**
