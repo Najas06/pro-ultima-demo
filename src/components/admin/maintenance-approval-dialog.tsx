@@ -76,7 +76,7 @@ export function MaintenanceApprovalDialog({ request, isOpen, onOpenChange }: Mai
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
         <DialogHeader>
           <DialogTitle>Maintenance Request Details</DialogTitle>
           <DialogDescription>
@@ -105,7 +105,7 @@ export function MaintenanceApprovalDialog({ request, isOpen, onOpenChange }: Mai
               <User className="h-4 w-4" />
               Staff Information
             </h3>
-            <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
               <div>
                 <p className="text-sm text-muted-foreground">Staff Name</p>
                 <p className="font-medium">{request.staff?.name || 'Unknown'}</p>
@@ -127,7 +127,7 @@ export function MaintenanceApprovalDialog({ request, isOpen, onOpenChange }: Mai
               <Package className="h-4 w-4" />
               System Details
             </h3>
-            <div className="grid grid-cols-2 gap-4 p-4 border rounded-lg">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 border rounded-lg">
               <div>
                 <p className="text-sm text-muted-foreground">Serial Number</p>
                 <p className="font-medium">{request.serial_number || '-'}</p>
@@ -163,7 +163,7 @@ export function MaintenanceApprovalDialog({ request, isOpen, onOpenChange }: Mai
               <Calendar className="h-4 w-4" />
               Important Dates
             </h3>
-            <div className="grid grid-cols-2 gap-4 p-4 border rounded-lg">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 border rounded-lg">
               <div>
                 <p className="text-sm text-muted-foreground">Report Month</p>
                 <p className="font-medium">{format(new Date(request.report_month), 'MMMM yyyy')}</p>
@@ -235,7 +235,7 @@ export function MaintenanceApprovalDialog({ request, isOpen, onOpenChange }: Mai
                   />
                 </div>
 
-                <div className="flex justify-end gap-2">
+                <div className="flex flex-col sm:flex-row justify-end gap-2">
                   <Button
                     type="button"
                     variant="destructive"

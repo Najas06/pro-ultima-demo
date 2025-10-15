@@ -8,6 +8,7 @@ export interface AuthUser {
   staffId?: string; // Only for staff users
   department?: string; // Only for staff users
   branch?: string; // Only for staff users
+  profileImage?: string; // Profile image URL
 }
 
 export interface Admin {

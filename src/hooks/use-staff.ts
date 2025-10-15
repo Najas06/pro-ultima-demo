@@ -159,32 +159,7 @@ export function useStaff() {
         console.log('🔑 Updating staff password...', { staffId: updateData.id });
         const password_hash = await hashPassword(updateData.password);
         updateFields.password_hash = password_hash;
-
-        // Get staff's auth_user_id
-        const { data: staff } = await supabase
-          .from('staff')
-          .select('auth_user_id')
-          .eq('id', updateData.id)
-          .single();
-
-        // Update Supabase Auth password if auth_user_id exists
-        if (staff?.auth_user_id) {
-          console.log('🔑 Updating Supabase Auth password...', { authUserId: staff.auth_user_id });
-          const { error: authError } = await supabase.auth.admin.updateUserById(
-            staff.auth_user_id,
-            {
-              password: updateData.password,
-            }
-          );
-
-          if (authError) {
-            console.error('❌ Error updating Supabase Auth password:', authError);
-            throw new Error(`Failed to update Supabase Auth password: ${authError.message}`);
-          }
-          console.log('✅ Supabase Auth password updated successfully');
-        } else {
-          console.warn('⚠️ Staff has no auth_user_id, skipping Supabase Auth password update');
-        }
+        console.log('✅ Password hash updated successfully');
       }
 
       const { data, error } = await supabase

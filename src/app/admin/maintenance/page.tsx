@@ -80,7 +80,7 @@ export default function AdminMaintenancePage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Requests</CardTitle>
@@ -158,7 +158,7 @@ export default function AdminMaintenancePage() {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto -mx-4 sm:mx-0">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -218,3 +218,4 @@ export default function AdminMaintenancePage() {
     </div>
   );
 }
+
