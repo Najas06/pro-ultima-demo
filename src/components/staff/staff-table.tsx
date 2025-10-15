@@ -35,6 +35,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useUIStore } from "@/stores/ui-store";
 import { Staff } from "@/types";
 import { IconDots, IconEdit, IconTrash, IconSearch } from "@tabler/icons-react";
+import Image from "next/image";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 // Mock data for demonstration
 const mockStaff: Staff[] = [
@@ -125,10 +127,25 @@ export function StaffTable() {
       header: "Name",
       cell: ({ row }) => {
         const staff = row.original;
+        const initials = staff.name
+          .split(' ')
+          .map(n => n[0])
+          .join('')
+          .toUpperCase()
+          .slice(0, 2);
+        
         return (
-          <div className="flex flex-col">
-            <span className="font-medium">{staff.name}</span>
-            <span className="text-sm text-muted-foreground">{staff.email}</span>
+          <div className="flex items-center gap-3">
+            <Avatar className="h-10 w-10">
+              <AvatarImage src={staff.profile_image_url || ''} alt={staff.name} />
+              <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex flex-col">
+              <span className="font-medium">{staff.name}</span>
+              <span className="text-sm text-muted-foreground">{staff.email}</span>
+            </div>
           </div>
         );
       },

@@ -53,11 +53,23 @@ export function StaffSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
     }
   };
 
+  // Get staff profile image from user object
+  const staffProfileImage = user?.profileImage || "/avatars/staff.svg";
+  const staffInitials = user?.name
+    ? user.name
+        .split(' ')
+        .map(n => n[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2)
+    : 'SU';
+
   const data = {
     user: {
       name: user?.name || "Staff User",
       email: user?.email || "staff@proultima.com",
-      avatar: "/avatars/staff.svg",
+      avatar: staffProfileImage,
+      initials: staffInitials,
     },
     navMain: [
       {

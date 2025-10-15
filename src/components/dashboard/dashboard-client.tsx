@@ -105,44 +105,6 @@ export function DashboardClient() {
   const [statusTimeRange, setStatusTimeRange] = useState("30d");
   const [priorityTimeRange, setPriorityTimeRange] = useState("30d");
 
-  // Cleanup duplicate assignments
-  const handleCleanupDuplicates = async () => {
-    // No longer needed - direct Supabase queries prevent duplicates
-    alert('✅ No cleanup needed with real-time sync!');
-  };
-
-  // Refresh all data from Supabase
-  const handleClearAllData = async () => {
-    try {
-      // Invalidate all queries to refetch from Supabase
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['staff'] });
-      queryClient.invalidateQueries({ queryKey: ['teams'] });
-      queryClient.invalidateQueries({ queryKey: ['team-members'] });
-      window.dispatchEvent(new CustomEvent('dataUpdated'));
-      alert('✅ Data refreshed from Supabase!');
-    } catch (error) {
-      console.error('Failed to refresh data:', error);
-      alert('❌ Failed to refresh data. Check console for details.');
-    }
-  };
-
-  // Force sync from Supabase
-  const handleForceSync = async () => {
-    try {
-      // Invalidate all queries to refetch from Supabase
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['staff'] });
-      queryClient.invalidateQueries({ queryKey: ['teams'] });
-      queryClient.invalidateQueries({ queryKey: ['team-members'] });
-      window.dispatchEvent(new CustomEvent('dataUpdated'));
-      alert('✅ Data refreshed from Supabase successfully!');
-    } catch (error) {
-      console.error('Failed to refresh:', error);
-      alert('❌ Failed to refresh data. Check console for details.');
-    }
-  };
-
   // Listen for data updates and refetch all queries
   useEffect(() => {
     const handleDataUpdate = () => {
@@ -251,38 +213,12 @@ export function DashboardClient() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleCleanupDuplicates}
-              className="text-xs"
-            >
-              🧹 Fix Data
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={handleClearAllData}
-              className="text-xs"
-            >
-              🗑️ Clear All
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={handleForceSync}
-              className="text-xs"
-            >
-              🔄 Force Sync
-            </Button>
-          </div>
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-muted-foreground mt-1">
             Overview of your tasks, staff, and teams
           </p>
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex flex-col sm:flex-row gap-2 flex-wrap">
           <TaskAllocationDialog
             
           />
@@ -299,7 +235,7 @@ export function DashboardClient() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Tasks</CardTitle>
