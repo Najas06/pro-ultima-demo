@@ -1,8 +1,9 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProfileSettings } from "@/components/admin/settings/profile-settings";
 import { SystemOptionsManager } from "@/components/admin/settings/system-options-manager";
+import { OpeningBalanceManager } from "@/components/admin/settings/opening-balance-manager";
 import { getAdminProfile } from "@/lib/actions/adminActions";
-import { User, Settings } from "lucide-react";
+import { User, Settings, DollarSign } from "lucide-react";
 
 export default async function SettingsPage() {
   const profileResult = await getAdminProfile();
@@ -21,7 +22,7 @@ export default async function SettingsPage() {
       </div>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
+        <TabsList className="grid w-full max-w-2xl grid-cols-3">
           <TabsTrigger value="profile" className="flex items-center gap-2">
             <User className="h-4 w-4" />
             Profile
@@ -29,6 +30,10 @@ export default async function SettingsPage() {
           <TabsTrigger value="system" className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
             System Options
+          </TabsTrigger>
+          <TabsTrigger value="opening-balance" className="flex items-center gap-2">
+            <DollarSign className="h-4 w-4" />
+            Opening Balances
           </TabsTrigger>
         </TabsList>
 
@@ -38,6 +43,10 @@ export default async function SettingsPage() {
 
         <TabsContent value="system" className="mt-6">
           <SystemOptionsManager />
+        </TabsContent>
+
+        <TabsContent value="opening-balance" className="mt-6">
+          <OpeningBalanceManager />
         </TabsContent>
       </Tabs>
     </div>

@@ -83,9 +83,9 @@ export default function StaffCashbookPage() {
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Cash Book</h1>
+          <h1 className="text-3xl font-bold">Cash Book - {branch} Branch</h1>
           <p className="text-muted-foreground">
-            Manage petty cash transactions for {branch} branch
+            View all branch transactions and manage petty cash
           </p>
         </div>
         <div className="flex gap-2">
@@ -186,6 +186,7 @@ export default function StaffCashbookPage() {
                   <th className="text-left p-2">S.No</th>
                   <th className="text-left p-2">Date</th>
                   <th className="text-left p-2">Voucher No</th>
+                  <th className="text-left p-2">Staff Member</th>
                   <th className="text-left p-2">Bill Status</th>
                   <th className="text-left p-2">Description</th>
                   <th className="text-left p-2">Nature</th>
@@ -197,13 +198,13 @@ export default function StaffCashbookPage() {
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={9} className="text-center p-4">
+                    <td colSpan={10} className="text-center p-4">
                       Loading transactions...
                     </td>
                   </tr>
                 ) : filteredTransactions.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="text-center p-4 text-muted-foreground">
+                    <td colSpan={10} className="text-center p-4 text-muted-foreground">
                       No transactions found
                     </td>
                   </tr>
@@ -215,6 +216,12 @@ export default function StaffCashbookPage() {
                         {new Date(transaction.transaction_date).toLocaleDateString()}
                       </td>
                       <td className="p-2 font-mono text-sm">{transaction.voucher_no}</td>
+                      <td className="p-2">
+                        <div className="flex flex-col">
+                          <span className="font-medium">{transaction.staff?.name || 'Unknown'}</span>
+                          <span className="text-xs text-muted-foreground">{transaction.staff?.employee_id || ''}</span>
+                        </div>
+                      </td>
                       <td className="p-2">
                         <span
                           className={`inline-block px-2 py-1 rounded text-xs ${
