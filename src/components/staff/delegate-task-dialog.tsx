@@ -70,9 +70,7 @@ export function DelegateTaskDialog({ task, availableStaff }: DelegateTaskDialogP
       const { error: updateError } = await supabase
         .from('tasks')
         .update({ 
-          assigned_staff_ids: updatedAssignedStaff,
-          delegated_from_staff_id: user?.staffId,
-          delegated_by_staff_name: user?.name
+          assigned_staff_ids: updatedAssignedStaff
         })
         .eq('id', task.id);
 

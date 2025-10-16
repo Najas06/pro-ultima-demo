@@ -30,13 +30,52 @@ export function useTasks() {
   const { data: tasks = [], isLoading, error, refetch } = useQuery<Task[]>({
     queryKey: ['tasks'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Fetch tasks
+      const { data: tasksData, error: tasksError } = await supabase
         .from('tasks')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      return data || [];
+      if (tasksError) throw tasksError;
+      
+      // Fetch all delegations to enrich task data
+      const { data: delegations } = await supabase
+        .from('task_delegations')
+        .select(`
+          task_id,
+          from_staff_id,
+          to_staff_id,
+          from_staff:staff!task_delegations_from_staff_id_fkey(id, name),
+          to_staff:staff!task_delegations_to_staff_id_fkey(id, name)
+        `)
+        .order('created_at', { ascending: false });
+      
+      // Create a map of latest delegation per task
+      const delegationMap = new Map();
+      (delegations || []).forEach((del: any) => {
+        if (!delegationMap.has(del.task_id)) {
+          const fromStaff = Array.isArray(del.from_staff) ? del.from_staff[0] : del.from_staff;
+          const toStaff = Array.isArray(del.to_staff) ? del.to_staff[0] : del.to_staff;
+          
+          delegationMap.set(del.task_id, {
+            delegated_from_staff_id: del.from_staff_id,
+            delegated_by_staff_name: fromStaff?.name || null,
+            delegated_to_staff_id: del.to_staff_id,
+            delegated_to_staff_name: toStaff?.name || null
+          });
+        }
+      });
+      
+      // Map tasks with delegation info
+      const tasksWithDelegation = (tasksData || []).map(task => ({
+        ...task,
+        delegated_from_staff_id: delegationMap.get(task.id)?.delegated_from_staff_id || null,
+        delegated_by_staff_name: delegationMap.get(task.id)?.delegated_by_staff_name || null,
+        delegated_to_staff_id: delegationMap.get(task.id)?.delegated_to_staff_id || null,
+        delegated_to_staff_name: delegationMap.get(task.id)?.delegated_to_staff_name || null
+      }));
+      
+      return tasksWithDelegation;
     },
     staleTime: 5 * 60 * 1000, // 5 minutes - data fresh for 5 min
     refetchOnWindowFocus: false, // Disable - we have real-time
@@ -72,6 +111,14 @@ export function useTasks() {
         { event: '*', schema: 'public', table: 'task_assignments' },
         (payload) => {
           console.log('📡 Task assignments changed:', payload);
+          debouncedInvalidate(); // Use debounced version
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'task_delegations' },
+        (payload) => {
+          console.log('📡 Task delegations changed:', payload);
           debouncedInvalidate(); // Use debounced version
         }
       )
