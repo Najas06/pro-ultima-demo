@@ -12,7 +12,8 @@ export interface CashTransaction {
   cash_out: number;
   cash_in: number;
   balance: number;
-  receipt_image_url?: string;
+  receipt_image_url?: string; // Keep for backward compatibility
+  attachment_urls?: string[]; // NEW: Multiple images
   notes?: string;
   created_at: string;
   updated_at: string;
@@ -30,7 +31,8 @@ export interface CashTransactionFormData {
   nature_of_expense: string;
   cash_out?: number;
   cash_in?: number;
-  receipt_image_url?: string;
+  receipt_image_url?: string; // Keep for backward compatibility
+  attachment_urls?: string[]; // NEW: Array of image URLs
   notes?: string;
 }
 

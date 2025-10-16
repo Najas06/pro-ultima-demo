@@ -21,10 +21,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { PlusCircle, Loader2, Upload } from 'lucide-react';
+import { PlusCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCashTransactions } from '@/hooks/use-cash-transactions';
 import { useTaskProofs } from '@/hooks/use-task-proofs';
+import { MultipleImageUpload } from '@/components/cashbook/multiple-image-upload';
+import { NatureExpenseCombobox } from '@/components/cashbook/nature-expense-combobox';
 import type { CashTransactionFormData } from '@/types/cashbook';
 
 interface AddCashTransactionDialogProps {
@@ -38,7 +40,7 @@ export function AddCashTransactionDialog({ branch }: AddCashTransactionDialogPro
   
   const [open, setOpen] = useState(false);
   const [transactionType, setTransactionType] = useState<'cash_out' | 'cash_in'>('cash_out');
-  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   
   const [formData, setFormData] = useState<CashTransactionFormData>({
@@ -89,11 +91,18 @@ export function AddCashTransactionDialog({ branch }: AddCashTransactionDialogPro
 
       const { voucher_no } = await voucherResponse.json();
 
-      // Upload receipt if provided
-      let receiptUrl = '';
-      if (receiptFile) {
+      // Upload images if provided
+      let attachmentUrls: string[] = [];
+      if (imageFiles.length > 0) {
         setUploading(true);
-        receiptUrl = await uploadReceiptImage(receiptFile, voucher_no);
+        try {
+          attachmentUrls = await Promise.all(
+            imageFiles.map(file => uploadReceiptImage(file, voucher_no))
+          );
+        } catch (error) {
+          console.error('Error uploading images:', error);
+          toast.error('Failed to upload some images');
+        }
         setUploading(false);
       }
 
@@ -102,7 +111,7 @@ export function AddCashTransactionDialog({ branch }: AddCashTransactionDialogPro
         ...formData,
         cash_out: transactionType === 'cash_out' ? (formData.cash_out || 0) : 0,
         cash_in: transactionType === 'cash_in' ? (formData.cash_in || 0) : 0,
-        receipt_image_url: receiptUrl || undefined,
+        attachment_urls: attachmentUrls.length > 0 ? attachmentUrls : undefined,
         staff_id: user.staffId,
         branch,
         voucher_no,
@@ -118,7 +127,7 @@ export function AddCashTransactionDialog({ branch }: AddCashTransactionDialogPro
         cash_in: 0,
         notes: '',
       });
-      setReceiptFile(null);
+      setImageFiles([]);
       setOpen(false);
     } catch (error) {
       console.error('Error creating transaction:', error);
@@ -195,21 +204,12 @@ export function AddCashTransactionDialog({ branch }: AddCashTransactionDialogPro
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="nature_of_expense">Nature of Expense</Label>
-            <Select value={formData.nature_of_expense} onValueChange={(value) => setFormData({ ...formData, nature_of_expense: value })}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select category" />
-              </SelectTrigger>
-              <SelectContent>
-                {expenseCategories.map((category) => (
-                  <SelectItem key={category.id} value={category.name}>
-                    {category.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <NatureExpenseCombobox
+            value={formData.nature_of_expense}
+            onValueChange={(value) => setFormData({ ...formData, nature_of_expense: value })}
+            options={expenseCategories.map(c => c.name)}
+            placeholder="Select or type custom category..."
+          />
 
           <div className="space-y-2">
             <Label htmlFor="amount">Amount (₹)</Label>
@@ -232,23 +232,11 @@ export function AddCashTransactionDialog({ branch }: AddCashTransactionDialogPro
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="receipt">Receipt/Bill Image (Optional)</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                id="receipt"
-                type="file"
-                accept="image/*"
-                onChange={(e) => setReceiptFile(e.target.files?.[0] || null)}
-              />
-              {receiptFile && (
-                <div className="flex items-center text-sm text-green-600">
-                  <Upload className="mr-1 h-4 w-4" />
-                  Selected
-                </div>
-              )}
-            </div>
-          </div>
+          <MultipleImageUpload
+            onImagesChange={setImageFiles}
+            maxImages={10}
+            maxSizeMB={10}
+          />
 
           <div className="space-y-2">
             <Label htmlFor="notes">Notes (Optional)</Label>

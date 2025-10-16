@@ -12,10 +12,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { RefreshCw, Download, TrendingUp } from 'lucide-react';
+import { RefreshCw, Download, TrendingUp, Eye } from 'lucide-react';
 import { CashSummaryCards } from '@/components/cashbook/cash-summary-cards';
+import { TransactionDetailsDialog } from '@/components/admin/transaction-details-dialog';
 import { useCashTransactions } from '@/hooks/use-cash-transactions';
 import { useStaff } from '@/hooks/use-staff';
+import type { CashTransaction } from '@/types/cashbook';
 
 export default function AdminCashbookPage() {
   const [selectedBranch, setSelectedBranch] = useState<string>('all');
@@ -24,6 +26,8 @@ export default function AdminCashbookPage() {
   const [endDate, setEndDate] = useState('');
   const [billStatusFilter, setBillStatusFilter] = useState<string>('all');
   const [expenseCategoryFilter, setExpenseCategoryFilter] = useState<string>('all');
+  const [selectedTransaction, setSelectedTransaction] = useState<CashTransaction | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
   const { staff } = useStaff();
   
@@ -210,18 +214,19 @@ export default function AdminCashbookPage() {
                   <th className="text-right p-2">Cash Out</th>
                   <th className="text-right p-2">Cash In</th>
                   <th className="text-right p-2">Balance</th>
+                  <th className="text-center p-2">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={11} className="text-center p-4">
+                    <td colSpan={12} className="text-center p-4">
                       Loading transactions...
                     </td>
                   </tr>
                 ) : filteredTransactions.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="text-center p-4 text-muted-foreground">
+                    <td colSpan={12} className="text-center p-4 text-muted-foreground">
                       No transactions found
                     </td>
                   </tr>
@@ -264,6 +269,19 @@ export default function AdminCashbookPage() {
                       </td>
                       <td className="p-2 text-right font-bold">
                         ₹{transaction.balance.toLocaleString('en-IN')}
+                      </td>
+                      <td className="p-2 text-center">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedTransaction(transaction);
+                            setIsDetailsOpen(true);
+                          }}
+                        >
+                          <Eye className="h-3 w-3 mr-1" />
+                          View
+                        </Button>
                       </td>
                     </tr>
                   ))
@@ -324,6 +342,13 @@ export default function AdminCashbookPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Transaction Details Dialog */}
+      <TransactionDetailsDialog
+        transaction={selectedTransaction}
+        open={isDetailsOpen}
+        onOpenChange={setIsDetailsOpen}
+      />
     </div>
   );
 }

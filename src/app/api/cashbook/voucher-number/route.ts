@@ -22,13 +22,14 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient();
 
     // Get the latest voucher number for this branch and type
-    const prefix = type === 'cash_out' ? 'V' : 'R';
+    const prefix = type === 'cash_out' ? 'CO' : 'CI';
+    const year = new Date().getFullYear();
     
     const { data: latestVoucher, error } = await supabase
       .from('cash_transactions')
       .select('voucher_no')
       .eq('branch', branch)
-      .like('voucher_no', `${prefix}%`)
+      .like('voucher_no', `${prefix}-${year}-%`)
       .order('created_at', { ascending: false })
       .limit(1)
       .single();
@@ -36,13 +37,19 @@ export async function POST(request: NextRequest) {
     let nextNumber = 1;
 
     if (latestVoucher && !error) {
-      // Extract number from voucher (e.g., "V001" -> 1, "R002" -> 2)
-      const currentNumber = parseInt(latestVoucher.voucher_no.substring(1), 10);
-      nextNumber = currentNumber + 1;
+      // Extract number from voucher (e.g., "CO-2025-001" -> 1)
+      const parts = latestVoucher.voucher_no.split('-');
+      if (parts.length === 3) {
+        const currentNumber = parseInt(parts[2], 10);
+        nextNumber = currentNumber + 1;
+      }
     }
 
-    // Format the voucher number (e.g., V001, V002, R001, R002)
-    const voucher_no = `${prefix}${nextNumber.toString().padStart(3, '0')}`;
+    // Generate random suffix for uniqueness (4 characters)
+    const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+    
+    // Format the voucher number (e.g., CO-2025-001-a1b2, CI-2025-001-c3d4)
+    const voucher_no = `${prefix}-${year}-${nextNumber.toString().padStart(3, '0')}-${randomSuffix}`;
 
     return NextResponse.json({ 
       voucher_no, 
