@@ -47,7 +47,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     >
       <AppSidebar variant="inset" />
       <SidebarInset>
-        <SiteHeader />
+        <SiteHeader userName={user?.name} userRole={user?.role} />
         <div className="flex flex-1 flex-col">
           <RealtimeDataSync />
           {children}

@@ -288,10 +288,138 @@ export function useTasks() {
     },
     onSuccess: async (result) => {
       toast.success('Task created successfully!');
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
       
-      // Send email notifications to assigned staff
-      if (result.assigned_staff_ids && result.assigned_staff_ids.length > 0) {
+      // ==========================================
+      // TEAM TASK POST-CREATION LOGIC
+      // ==========================================
+      if (result.allocation_mode === 'team' && result.assigned_team_ids && result.assigned_team_ids.length > 0) {
+        console.log('📋 Post-creation: Processing team task assignments for teams:', result.assigned_team_ids);
+        
+        try {
+          // 1. Create task_team_assignments entries
+          console.log('📋 Creating task_team_assignments entries...');
+          const teamAssignments = result.assigned_team_ids.map((teamId: string) => ({
+            task_id: result.id,
+            team_id: teamId,
+          }));
+
+          const { error: teamAssignmentError } = await supabase
+            .from('task_team_assignments')
+            .insert(teamAssignments);
+
+          if (teamAssignmentError) {
+            console.error('❌ Task team assignment error:', teamAssignmentError);
+          } else {
+            console.log('✅ Task team assignments created successfully');
+          }
+
+          // 2. Fetch team members and populate assigned_staff_ids
+          console.log('👥 Fetching team members for teams:', result.assigned_team_ids);
+          
+          const { data: teamMembers } = await supabase
+            .from('team_members')
+            .select('staff_id')
+            .in('team_id', result.assigned_team_ids);
+
+          if (teamMembers && teamMembers.length > 0) {
+            const memberIds = teamMembers.map(m => m.staff_id);
+            console.log('✅ Found team members:', memberIds);
+            
+            // Update task with assigned_staff_ids
+            const { error: updateError } = await supabase
+              .from('tasks')
+              .update({ assigned_staff_ids: memberIds })
+              .eq('id', result.id);
+            
+            if (updateError) {
+              console.error('❌ Failed to update assigned_staff_ids:', updateError);
+            } else {
+              console.log('✅ Updated task with assigned_staff_ids');
+            }
+            
+            // Create task_assignments for each team member
+            const assignments = memberIds.map((staffId: string) => ({
+              task_id: result.id,
+              staff_id: staffId,
+            }));
+
+            const { error: assignmentError } = await supabase
+              .from('task_assignments')
+              .insert(assignments);
+
+            if (assignmentError) {
+              console.error('❌ Task assignment error:', assignmentError);
+            } else {
+              console.log('✅ Task assignments created for team members');
+            }
+          } else {
+            console.warn('⚠️ No team members found for teams:', result.assigned_team_ids);
+          }
+
+          // 3. Send email notification to team leaders
+          console.log('📧 Attempting to send team assignment notification...');
+          
+          const { data: teams, error: teamsError } = await supabase
+            .from('teams')
+            .select(`
+              id,
+              name,
+              leader:staff!leader_id(
+                email,
+                name
+              ),
+              members:team_members(id)
+            `)
+            .in('id', result.assigned_team_ids);
+
+          if (teamsError) {
+            console.error('❌ Error fetching team details:', teamsError);
+          } else if (teams && teams.length > 0) {
+            console.log('📊 Fetched teams for notification:', teams.length, 'teams');
+            
+            for (const team of teams) {
+              const leader = Array.isArray(team.leader) ? team.leader[0] : team.leader;
+              const memberCount = team.members?.length || 0;
+              
+              console.log(`📧 Team: ${team.name}, Leader:`, leader, `Members: ${memberCount}`);
+              
+              if (leader?.email && leader?.name) {
+                console.log(`✉️ Sending email to: ${leader.name} (${leader.email})`);
+                
+                try {
+                  await fetch('/api/email/send-task-notification', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      type: 'team_assignment',
+                      taskId: result.id,
+                      teamName: team.name,
+                      leaderEmail: leader.email,
+                      leaderName: leader.name,
+                      teamMemberCount: memberCount,
+                    }),
+                  });
+                  console.log(`✅ Email sent successfully to ${leader.name}`);
+                } catch (emailError) {
+                  console.error(`❌ Failed to send email to ${leader.name}:`, emailError);
+                }
+              } else {
+                console.warn(`⚠️ Team ${team.name} has incomplete leader data:`, leader);
+              }
+            }
+          } else {
+            console.warn('⚠️ No teams found for IDs:', result.assigned_team_ids);
+          }
+        } catch (error) {
+          console.error('❌ Error in team task post-creation:', error);
+          // Don't fail the whole operation
+        }
+      }
+      
+      // ==========================================
+      // INDIVIDUAL TASK EMAIL NOTIFICATIONS
+      // ==========================================
+      if (result.allocation_mode === 'individual' && result.assigned_staff_ids && result.assigned_staff_ids.length > 0) {
         try {
           const { data: staffData } = await supabase
             .from('staff')
@@ -317,6 +445,9 @@ export function useTasks() {
           // Don't fail the whole operation if email fails
         }
       }
+      
+      // Invalidate queries to refresh UI with updated data
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
       
       // Trigger cross-tab sync
       window.dispatchEvent(new CustomEvent('dataUpdated'));
@@ -362,9 +493,45 @@ export function useTasks() {
 
       return { previousTasks };
     },
-    onSuccess: async (result) => {
+    onSuccess: async (result, variables) => {
       toast.success('Task updated successfully!');
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      
+      // Check if status changed and notify admin
+      const oldTask = queryClient.getQueryData<Task[]>(['tasks'])
+        ?.find(t => t.id === variables.id);
+      
+      if (oldTask && oldTask.status !== result.status) {
+        try {
+          // Fetch admin email
+          const { data: adminData } = await supabase
+            .from('admins')
+            .select('email')
+            .limit(1)
+            .single();
+          
+          // Get staff name from localStorage
+          const user = JSON.parse(localStorage.getItem('user') || '{}');
+          
+          if (adminData?.email) {
+            await fetch('/api/email/send-task-notification', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'status_change',
+                taskId: result.id,
+                adminEmail: adminData.email,
+                staffName: user.name || 'Staff',
+                oldStatus: oldTask.status,
+                newStatus: result.status
+              }),
+            });
+          }
+        } catch (error) {
+          console.error('Error sending status change notification:', error);
+          // Don't fail the whole operation if email fails
+        }
+      }
       
       // Send email notifications to assigned staff about changes
       if (result.assigned_staff_ids && result.assigned_staff_ids.length > 0) {

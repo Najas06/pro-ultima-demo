@@ -6,7 +6,9 @@ import {
   sendTaskDelegationEmail,
   sendDelegationAdminNotification,
   sendTaskRejectionEmail,
-  sendTaskApprovalEmail
+  sendTaskApprovalEmail,
+  sendTeamTaskAssignmentEmail,
+  sendTaskStatusChangeEmail
 } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
@@ -21,7 +23,14 @@ export async function POST(request: NextRequest) {
       adminEmail, 
       changes,
       rejectedBy,
-      approvedBy
+      approvedBy,
+      // New parameters for team and status notifications
+      teamName,
+      leaderEmail,
+      leaderName,
+      teamMemberCount,
+      oldStatus,
+      newStatus
     } = await request.json();
 
     if (!taskId) {
@@ -122,6 +131,38 @@ export async function POST(request: NextRequest) {
           );
         }
         await sendTaskApprovalEmail(task, staffEmail, staffName, approvedBy || 'Admin');
+        break;
+
+      case 'team_assignment':
+        if (!teamName || !leaderEmail || !leaderName || teamMemberCount === undefined) {
+          return NextResponse.json(
+            { error: 'Missing team assignment parameters' },
+            { status: 400 }
+          );
+        }
+        await sendTeamTaskAssignmentEmail(
+          task,
+          teamName,
+          leaderEmail,
+          leaderName,
+          teamMemberCount
+        );
+        break;
+
+      case 'status_change':
+        if (!adminEmail || !staffName || !oldStatus || !newStatus) {
+          return NextResponse.json(
+            { error: 'Missing status change parameters' },
+            { status: 400 }
+          );
+        }
+        await sendTaskStatusChangeEmail(
+          task,
+          adminEmail,
+          staffName,
+          oldStatus,
+          newStatus
+        );
         break;
 
       default:

@@ -29,7 +29,7 @@ import { useStaff } from "@/hooks/use-staff";
 import { useTeams } from "@/hooks/use-teams";
 import { useRouter } from "next/navigation";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from "@/components/ui/chart";
-import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // Chart configuration
@@ -325,25 +325,7 @@ export function DashboardClient() {
               config={statusChartConfig}
               className="aspect-auto h-[250px] w-full"
             >
-              <AreaChart data={statusChartData}>
-                <defs>
-                  <linearGradient id="fillCompleted" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--color-completed)" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="var(--color-completed)" stopOpacity={0.1} />
-                  </linearGradient>
-                  <linearGradient id="fillInProgress" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--color-inProgress)" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="var(--color-inProgress)" stopOpacity={0.1} />
-                  </linearGradient>
-                  <linearGradient id="fillTodo" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--color-todo)" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="var(--color-todo)" stopOpacity={0.1} />
-                  </linearGradient>
-                  <linearGradient id="fillBacklog" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--color-backlog)" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="var(--color-backlog)" stopOpacity={0.1} />
-                  </linearGradient>
-                </defs>
+              <BarChart data={statusChartData}>
                 <CartesianGrid vertical={false} />
                 <XAxis
                   dataKey="date"
@@ -374,36 +356,12 @@ export function DashboardClient() {
                     />
                   }
                 />
-                <Area
-                  dataKey="backlog"
-                  type="natural"
-                  fill="url(#fillBacklog)"
-                  stroke="var(--color-backlog)"
-                  stackId="a"
-                />
-                <Area
-                  dataKey="todo"
-                  type="natural"
-                  fill="url(#fillTodo)"
-                  stroke="var(--color-todo)"
-                  stackId="a"
-                />
-                <Area
-                  dataKey="inProgress"
-                  type="natural"
-                  fill="url(#fillInProgress)"
-                  stroke="var(--color-inProgress)"
-                  stackId="a"
-                />
-                <Area
-                  dataKey="completed"
-                  type="natural"
-                  fill="url(#fillCompleted)"
-                  stroke="var(--color-completed)"
-                  stackId="a"
-                />
+                <Bar dataKey="backlog" stackId="a" fill="var(--color-backlog)" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="todo" stackId="a" fill="var(--color-todo)" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="inProgress" stackId="a" fill="var(--color-inProgress)" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="completed" stackId="a" fill="var(--color-completed)" radius={[4, 4, 0, 0]} />
                 <ChartLegend content={<ChartLegendContent />} />
-              </AreaChart>
+              </BarChart>
             </ChartContainer>
           </CardContent>
         </Card>
@@ -442,25 +400,7 @@ export function DashboardClient() {
               config={priorityChartConfig}
               className="aspect-auto h-[250px] w-full"
             >
-              <AreaChart data={priorityChartData}>
-                <defs>
-                  <linearGradient id="fillUrgent" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--color-urgent)" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="var(--color-urgent)" stopOpacity={0.1} />
-                  </linearGradient>
-                  <linearGradient id="fillHigh" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--color-high)" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="var(--color-high)" stopOpacity={0.1} />
-                  </linearGradient>
-                  <linearGradient id="fillMedium" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--color-medium)" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="var(--color-medium)" stopOpacity={0.1} />
-                  </linearGradient>
-                  <linearGradient id="fillLow" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--color-low)" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="var(--color-low)" stopOpacity={0.1} />
-                  </linearGradient>
-                </defs>
+              <BarChart data={priorityChartData}>
                 <CartesianGrid vertical={false} />
                 <XAxis
                   dataKey="date"
@@ -491,36 +431,12 @@ export function DashboardClient() {
                     />
                   }
                 />
-                <Area
-                  dataKey="low"
-                  type="natural"
-                  fill="url(#fillLow)"
-                  stroke="var(--color-low)"
-                  stackId="a"
-                />
-                <Area
-                  dataKey="medium"
-                  type="natural"
-                  fill="url(#fillMedium)"
-                  stroke="var(--color-medium)"
-                  stackId="a"
-                />
-                <Area
-                  dataKey="high"
-                  type="natural"
-                  fill="url(#fillHigh)"
-                  stroke="var(--color-high)"
-                  stackId="a"
-                />
-                <Area
-                  dataKey="urgent"
-                  type="natural"
-                  fill="url(#fillUrgent)"
-                  stroke="var(--color-urgent)"
-                  stackId="a"
-                />
+                <Bar dataKey="low" stackId="a" fill="var(--color-low)" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="medium" stackId="a" fill="var(--color-medium)" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="high" stackId="a" fill="var(--color-high)" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="urgent" stackId="a" fill="var(--color-urgent)" radius={[4, 4, 0, 0]} />
                 <ChartLegend content={<ChartLegendContent />} />
-              </AreaChart>
+              </BarChart>
             </ChartContainer>
           </CardContent>
         </Card>

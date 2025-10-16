@@ -86,60 +86,62 @@ export function TasksTable({ tasks, onDelete }: TasksTableProps) {
       type: 'staff' | 'team' 
     }> = [];
     
-    
-    // Add individual staff assignments
-    if (task.assigned_staff_ids?.length > 0) {
-      task.assigned_staff_ids.forEach(staffId => {
-        const staffMember = staff.find(s => s.id === staffId);
-        let staffName: string;
-        let staffImage: string | undefined;
-        
-        if (staffMember) {
-          staffName = staffMember.name;
-          staffImage = staffMember.profile_image_url || undefined;
-        } else {
-          // Try to find by email or name if ID doesn't match
-          const alternativeStaff = staff.find(s => 
-            s.email === staffId ||
-            s.name.toLowerCase().includes(staffId.toLowerCase())
-          );
+    // Check allocation mode to determine what to display
+    if (task.allocation_mode === 'team') {
+      // For team tasks, only show team assignments (ignore individual staff)
+      if (task.assigned_team_ids?.length > 0) {
+        task.assigned_team_ids.forEach(teamId => {
+          const team = teams.find(t => t.id === teamId);
+          const teamName = team?.name || `Unknown Team (${teamId})`;
+          assignments.push({
+            task: { ...task, title: `${task.title} - ${teamName}` },
+            assignee: teamId,
+            assigneeName: teamName,
+            type: 'team'
+          });
+        });
+      }
+    } else {
+      // For individual tasks, only show individual staff assignments
+      if (task.assigned_staff_ids?.length > 0) {
+        task.assigned_staff_ids.forEach(staffId => {
+          const staffMember = staff.find(s => s.id === staffId);
+          let staffName: string;
+          let staffImage: string | undefined;
           
-          if (alternativeStaff) {
-            staffName = alternativeStaff.name;
-            staffImage = alternativeStaff.profile_image_url || undefined;
+          if (staffMember) {
+            staffName = staffMember.name;
+            staffImage = staffMember.profile_image_url || undefined;
           } else {
-            // Final fallback - check if it's a mock ID and suggest real staff
-            if (staffId.startsWith('staff-')) {
-              staffName = `Mock Staff (${staffId}) - Please reassign`;
+            // Try to find by email or name if ID doesn't match
+            const alternativeStaff = staff.find(s => 
+              s.email === staffId ||
+              s.name.toLowerCase().includes(staffId.toLowerCase())
+            );
+            
+            if (alternativeStaff) {
+              staffName = alternativeStaff.name;
+              staffImage = alternativeStaff.profile_image_url || undefined;
             } else {
-              staffName = `Unknown Staff (${staffId})`;
+              // Final fallback - check if it's a mock ID and suggest real staff
+              if (staffId.startsWith('staff-')) {
+                staffName = `Mock Staff (${staffId}) - Please reassign`;
+              } else {
+                staffName = `Unknown Staff (${staffId})`;
+              }
+              staffImage = undefined;
             }
-            staffImage = undefined;
           }
-        }
-        
-        assignments.push({
-          task: { ...task, title: `${task.title} - ${staffName}` },
-          assignee: staffId,
-          assigneeName: staffName,
-          assigneeImage: staffImage,
-          type: 'staff'
+          
+          assignments.push({
+            task: { ...task, title: `${task.title} - ${staffName}` },
+            assignee: staffId,
+            assigneeName: staffName,
+            assigneeImage: staffImage,
+            type: 'staff'
+          });
         });
-      });
-    }
-    
-    // Add team assignments
-    if (task.assigned_team_ids?.length > 0) {
-      task.assigned_team_ids.forEach(teamId => {
-        const team = teams.find(t => t.id === teamId);
-        const teamName = team?.name || `Unknown Team (${teamId})`;
-        assignments.push({
-          task: { ...task, title: `${task.title} - ${teamName}` },
-          assignee: teamId,
-          assigneeName: teamName,
-          type: 'team'
-        });
-      });
+      }
     }
     
     // If no assignments, return the original task
