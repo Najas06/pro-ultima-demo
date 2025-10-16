@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { UpdateTaskDialog } from '@/components/staff/update-task-dialog';
 import { DelegateTaskDialog } from '@/components/staff/delegate-task-dialog';
+import { StaffTaskDetailsDialog } from '@/components/staff/staff-task-details-dialog';
 import { Search, Filter, Calendar, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -25,6 +26,8 @@ export default function StaffTasksPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all');
   const [priorityFilter, setPriorityFilter] = useState<TaskPriority | 'all'>('all');
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
   // Filter tasks assigned to current staff member
   const myTasks = tasks.filter(task => 
@@ -157,7 +160,14 @@ export default function StaffTasksPage() {
                     const currentAssigneeName = currentAssignee ? staff.find(s => s.id === currentAssignee)?.name : null;
                     
                     return (
-                      <TableRow key={task.id}>
+                      <TableRow 
+                        key={task.id}
+                        className="cursor-pointer hover:bg-muted/50 transition-colors"
+                        onClick={() => {
+                          setSelectedTask(task);
+                          setIsDetailsOpen(true);
+                        }}
+                      >
                         <TableCell>
                           <div className="font-mono text-sm font-medium text-muted-foreground">
                             {task.task_no || 'N/A'}
@@ -200,7 +210,7 @@ export default function StaffTasksPage() {
                           <span className="text-sm text-muted-foreground">No due date</span>
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-2">
                           <UpdateTaskDialog task={task} />
                           <DelegateTaskDialog task={task} availableStaff={staff} />
@@ -215,6 +225,13 @@ export default function StaffTasksPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Task Details Dialog */}
+      <StaffTaskDetailsDialog
+        task={selectedTask}
+        open={isDetailsOpen}
+        onOpenChange={setIsDetailsOpen}
+      />
     </div>
   );
 }

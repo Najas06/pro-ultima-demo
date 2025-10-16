@@ -35,11 +35,15 @@ import {
   Users,
   Upload,
   X,
+  FileText,
+  File,
 } from "lucide-react";
 import { IconCirclePlusFilled } from "@tabler/icons-react";
 import { useTasks } from "@/hooks/use-tasks";
 import { useStaff } from "@/hooks/use-staff";
 import { useTeams } from "@/hooks/use-teams";
+import { createClient } from "@/lib/supabase/client";
+import { toast } from "sonner";
 import type { TaskFormData, TaskRepeatConfig, Staff } from "@/types";
 
 interface TaskAllocationDialogProps {
@@ -50,6 +54,7 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
   const { createTask, isCreating } = useTasks();
   const { staff } = useStaff();
   const { teams, teamMembers } = useTeams();
+  const supabase = createClient();
 
   // Transform staff to match expected interface
   const employees = staff.map(s => ({
@@ -115,11 +120,49 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
   // ============================================
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []);
-    setFiles((prev) => [...prev, ...selectedFiles]);
+    const MAX_SIZE = 10 * 1024 * 1024; // 10MB in bytes
+    
+    const validFiles: File[] = [];
+    const invalidFiles: string[] = [];
+    
+    selectedFiles.forEach(file => {
+      if (file.size > MAX_SIZE) {
+        invalidFiles.push(`${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+      } else {
+        validFiles.push(file);
+      }
+    });
+    
+    if (invalidFiles.length > 0) {
+      toast.error(`File(s) exceed 10MB limit: ${invalidFiles.join(', ')}`);
+    }
+    
+    if (validFiles.length > 0) {
+      setFiles((prev) => [...prev, ...validFiles]);
+      if (validFiles.length > 0) {
+        toast.success(`${validFiles.length} file(s) added successfully`);
+      }
+    }
+    
+    // Reset input
+    e.target.value = '';
   };
 
   const removeFile = (index: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Helper function to check if file is an image
+  const isImageFile = (file: File) => {
+    return file.type.startsWith('image/');
+  };
+
+  // Helper to get file icon based on type
+  const getFileIcon = (file: File) => {
+    if (file.type.includes('pdf')) return <FileText className="h-8 w-8 text-red-500" />;
+    if (file.type.includes('word') || file.type.includes('document')) return <FileText className="h-8 w-8 text-blue-500" />;
+    if (file.type.includes('excel') || file.type.includes('spreadsheet')) return <FileText className="h-8 w-8 text-green-500" />;
+    return <File className="h-8 w-8 text-gray-500" />;
   };
 
   const toggleCustomDay = (day: number) => {
@@ -168,47 +211,84 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
     setEndTime("17:00");
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Build repeat config if repeated task
-    let repeatConfig: TaskRepeatConfig | undefined;
-    if (isRepeatedTask) {
-      repeatConfig = {
-        frequency: repeatFrequency,
-        interval: repeatInterval,
-        end_date: repeatEndDate?.toISOString(),
-        custom_days: repeatFrequency === 'custom' ? customDays : undefined,
-        has_specific_time: hasSpecificTime,
-        start_time: hasSpecificTime ? startTime : undefined,
-        end_time: hasSpecificTime ? endTime : undefined,
+    try {
+      // Upload files to Supabase Storage first
+      const uploadedFileUrls: string[] = [];
+      
+      if (files.length > 0) {
+        toast.loading('Uploading files...');
+        
+        for (const file of files) {
+          const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+          const filePath = `task-files/${fileName}`;
+          
+          const { error: uploadError } = await supabase.storage
+            .from('task-files')
+            .upload(filePath, file, {
+              cacheControl: '3600',
+              upsert: false
+            });
+          
+          if (uploadError) {
+            console.error('Upload error:', uploadError);
+            toast.error(`Failed to upload ${file.name}`);
+            continue;
+          }
+          
+          // Get public URL
+          const { data } = supabase.storage
+            .from('task-files')
+            .getPublicUrl(filePath);
+          
+          uploadedFileUrls.push(data.publicUrl);
+        }
+        
+        toast.dismiss();
+        if (uploadedFileUrls.length > 0) {
+          toast.success(`${uploadedFileUrls.length} file(s) uploaded successfully`);
+        }
+      }
+
+      // Build repeat config if repeated task
+      let repeatConfig: TaskRepeatConfig | undefined;
+      if (isRepeatedTask) {
+        repeatConfig = {
+          frequency: repeatFrequency,
+          interval: repeatInterval,
+          end_date: repeatEndDate?.toISOString(),
+          custom_days: repeatFrequency === 'custom' ? customDays : undefined,
+          has_specific_time: hasSpecificTime,
+          start_time: hasSpecificTime ? startTime : undefined,
+          end_time: hasSpecificTime ? endTime : undefined,
+        };
+      }
+
+      // Build form data with uploaded file URLs
+      const formData: TaskFormData = {
+        title,
+        description,
+        allocation_mode: allocationMode,
+        assigned_staff_ids: allocationMode === 'individual' ? selectedIndividualStaff : [],
+        assigned_team_ids: allocationMode === 'team' ? selectedTeam : [],
+        status: 'todo',
+        priority,
+        due_date: dueDate?.toISOString(),
+        start_date: isRepeatedTask ? dueDate?.toISOString() : undefined,
+        is_repeated: isRepeatedTask,
+        repeat_config: repeatConfig,
+        support_files: uploadedFileUrls.length > 0 ? uploadedFileUrls : undefined,
       };
+
+      createTask(formData);
+      resetForm();
+      setIsOpen(false);
+    } catch (error) {
+      console.error('Error in handleSubmit:', error);
+      toast.error('Failed to create task. Please try again.');
     }
-
-    // Build form data
-    const formData: TaskFormData = {
-      title,
-      description,
-      allocation_mode: allocationMode,
-      assigned_staff_ids: allocationMode === 'individual' ? selectedIndividualStaff : [],
-      assigned_team_ids: allocationMode === 'team' ? selectedTeam : [],
-      status: 'todo',
-      priority,
-      due_date: dueDate?.toISOString(),
-      start_date: isRepeatedTask ? dueDate?.toISOString() : undefined,
-      is_repeated: isRepeatedTask,
-      repeat_config: repeatConfig,
-      support_files: files,
-    };
-
-    // Prepare task data
-    const taskData = {
-      ...formData,
-      support_files: files?.map(file => file.name) || undefined, // Convert File[] to string[]
-    };
-    createTask(taskData);
-    resetForm();
-    setIsOpen(false);
   };
 
   // ============================================
@@ -677,15 +757,39 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
 
             {files.length > 0 && (
               <div className="space-y-2 mt-4">
-                <Label className="text-sm font-medium">Selected Files:</Label>
-                <div className="space-y-2">
+                <Label className="text-sm font-medium">Selected Files ({files.length}):</Label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                   {files.map((file, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-sm truncate max-w-xs">{file.name}</span>
-                        <span className="text-xs text-gray-500">({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+                    <div key={index} className="relative group border rounded-lg p-3 bg-card hover:bg-muted/50 transition-colors">
+                      {/* Image preview or file icon */}
+                      <div className="aspect-square w-full bg-muted rounded-md overflow-hidden flex items-center justify-center mb-2">
+                        {isImageFile(file) ? (
+                          <img 
+                            src={URL.createObjectURL(file)} 
+                            alt={file.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          getFileIcon(file)
+                        )}
                       </div>
-                      <Button type="button" variant="ghost" size="sm" onClick={() => removeFile(index)}>
+                      
+                      {/* File info */}
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium truncate" title={file.name}>{file.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {(file.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                      </div>
+                      
+                      {/* Remove button */}
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="icon"
+                        className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => removeFile(index)}
+                      >
                         <X className="h-4 w-4" />
                       </Button>
                     </div>
