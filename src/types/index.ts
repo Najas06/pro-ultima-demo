@@ -58,6 +58,8 @@ export interface Staff {
   profile_image_url?: string | null;
   created_at: string;
   updated_at: string;
+  is_online?: boolean;        // Online/offline status
+  last_seen?: string;          // Last activity timestamp
 }
 
 // Team types

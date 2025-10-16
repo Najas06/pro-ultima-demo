@@ -82,6 +82,7 @@ export function EmployeeFormOptimized() {
     branch: s.branch,
     phone: s.phone,
     profileImage: s.profile_image_url || null,
+    is_online: s.is_online, // Online/offline status for status indicator
   }));
 
   // ============================================

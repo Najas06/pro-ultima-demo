@@ -42,6 +42,7 @@ interface Employee {
   branch?: string;
   phone?: string;
   profileImage: string | null; // Can be null but not undefined
+  is_online?: boolean; // Online/offline status
 }
 import Link from "next/link";
 
@@ -115,7 +116,14 @@ export function StaffCard({ employee, onEdit, onDelete, isDeleting }: StaffCardP
                 </AvatarFallback>
               </Avatar>
               {/* Online Status Indicator */}
-              <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-background rounded-full" />
+              <div 
+                className={`absolute -bottom-1 -right-1 w-4 h-4 border-2 border-background rounded-full ${
+                  employee.is_online 
+                    ? 'bg-green-500' 
+                    : 'bg-gray-400 dark:bg-gray-600'
+                }`}
+                title={employee.is_online ? 'Online' : 'Offline'}
+              />
             </div>
 
             <div className="flex-1 min-w-0">
