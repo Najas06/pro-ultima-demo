@@ -5,16 +5,8 @@ import { createClient } from '@/lib/supabase/client';
 import { useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { debounce } from '@/lib/debounce';
+import type { Team, Staff } from '@/types';
 
-interface Team {
-  id: string;
-  name: string;
-  description?: string;
-  leader_id: string;
-  branch?: string;
-  created_at: string;
-  updated_at: string;
-}
 
 interface TeamMember {
   id: string;
@@ -41,8 +33,23 @@ export function useTeams() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('teams')
-        .select('*')
+        .select(`
+          *,
+          leader:staff!leader_id(
+            id,
+            name,
+            email,
+            role,
+            department,
+            branch,
+            profile_image_url,
+            created_at,
+            updated_at
+          )
+        `)
         .order('created_at', { ascending: false });
+
+      console.log('📊 Teams data with leaders:', data?.slice(0, 1));
 
       if (error) throw error;
       return data || [];

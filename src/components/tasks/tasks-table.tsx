@@ -20,13 +20,14 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog";
-import { MoreVertical, Edit, Trash2, Calendar, Repeat, Users, User, Network, Eye } from "lucide-react";
+import { MoreVertical, Edit, Trash2, Calendar, Repeat, Users, User, Network, Eye, CheckCircle, XCircle } from "lucide-react";
 import { Task, TaskStatus, TaskPriority } from "@/types";
 import { EditTaskDialog } from "./edit-task-dialog";
 import { TaskVerificationDialog } from "@/components/admin/task-verification-dialog";
 import { useStaff } from "@/hooks/use-staff";
 import { useTeams } from "@/hooks/use-teams";
 import { useTaskProofs } from "@/hooks/use-task-proofs";
+import { useTasks } from "@/hooks/use-tasks";
 import { format } from "date-fns";
 
 interface TasksTableProps {
@@ -44,6 +45,7 @@ export function TasksTable({ tasks, onDelete }: TasksTableProps) {
   const { staff } = useStaff();
   const { teams } = useTeams();
   const { proofs } = useTaskProofs();
+  const { approveTask, rejectTask } = useTasks();
   
   // Debug: Log staff data when it changes
   useEffect(() => {
@@ -84,60 +86,62 @@ export function TasksTable({ tasks, onDelete }: TasksTableProps) {
       type: 'staff' | 'team' 
     }> = [];
     
-    
-    // Add individual staff assignments
-    if (task.assigned_staff_ids?.length > 0) {
-      task.assigned_staff_ids.forEach(staffId => {
-        const staffMember = staff.find(s => s.id === staffId);
-        let staffName: string;
-        let staffImage: string | undefined;
-        
-        if (staffMember) {
-          staffName = staffMember.name;
-          staffImage = staffMember.profile_image_url || undefined;
-        } else {
-          // Try to find by email or name if ID doesn't match
-          const alternativeStaff = staff.find(s => 
-            s.email === staffId ||
-            s.name.toLowerCase().includes(staffId.toLowerCase())
-          );
+    // Check allocation mode to determine what to display
+    if (task.allocation_mode === 'team') {
+      // For team tasks, only show team assignments (ignore individual staff)
+      if (task.assigned_team_ids?.length > 0) {
+        task.assigned_team_ids.forEach(teamId => {
+          const team = teams.find(t => t.id === teamId);
+          const teamName = team?.name || `Unknown Team (${teamId})`;
+          assignments.push({
+            task: { ...task, title: `${task.title} - ${teamName}` },
+            assignee: teamId,
+            assigneeName: teamName,
+            type: 'team'
+          });
+        });
+      }
+    } else {
+      // For individual tasks, only show individual staff assignments
+      if (task.assigned_staff_ids?.length > 0) {
+        task.assigned_staff_ids.forEach(staffId => {
+          const staffMember = staff.find(s => s.id === staffId);
+          let staffName: string;
+          let staffImage: string | undefined;
           
-          if (alternativeStaff) {
-            staffName = alternativeStaff.name;
-            staffImage = alternativeStaff.profile_image_url || undefined;
+          if (staffMember) {
+            staffName = staffMember.name;
+            staffImage = staffMember.profile_image_url || undefined;
           } else {
-            // Final fallback - check if it's a mock ID and suggest real staff
-            if (staffId.startsWith('staff-')) {
-              staffName = `Mock Staff (${staffId}) - Please reassign`;
+            // Try to find by email or name if ID doesn't match
+            const alternativeStaff = staff.find(s => 
+              s.email === staffId ||
+              s.name.toLowerCase().includes(staffId.toLowerCase())
+            );
+            
+            if (alternativeStaff) {
+              staffName = alternativeStaff.name;
+              staffImage = alternativeStaff.profile_image_url || undefined;
             } else {
-              staffName = `Unknown Staff (${staffId})`;
+              // Final fallback - check if it's a mock ID and suggest real staff
+              if (staffId.startsWith('staff-')) {
+                staffName = `Mock Staff (${staffId}) - Please reassign`;
+              } else {
+                staffName = `Unknown Staff (${staffId})`;
+              }
+              staffImage = undefined;
             }
-            staffImage = undefined;
           }
-        }
-        
-        assignments.push({
-          task: { ...task, title: `${task.title} - ${staffName}` },
-          assignee: staffId,
-          assigneeName: staffName,
-          assigneeImage: staffImage,
-          type: 'staff'
+          
+          assignments.push({
+            task: { ...task, title: `${task.title} - ${staffName}` },
+            assignee: staffId,
+            assigneeName: staffName,
+            assigneeImage: staffImage,
+            type: 'staff'
+          });
         });
-      });
-    }
-    
-    // Add team assignments
-    if (task.assigned_team_ids?.length > 0) {
-      task.assigned_team_ids.forEach(teamId => {
-        const team = teams.find(t => t.id === teamId);
-        const teamName = team?.name || `Unknown Team (${teamId})`;
-        assignments.push({
-          task: { ...task, title: `${task.title} - ${teamName}` },
-          assignee: teamId,
-          assigneeName: teamName,
-          type: 'team'
-        });
-      });
+      }
     }
     
     // If no assignments, return the original task
@@ -222,6 +226,7 @@ export function TasksTable({ tasks, onDelete }: TasksTableProps) {
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
+              <TableHead>Task #</TableHead>
               <TableHead>Task</TableHead>
               <TableHead>Assigned To</TableHead>
               <TableHead>Status</TableHead>
@@ -233,7 +238,7 @@ export function TasksTable({ tasks, onDelete }: TasksTableProps) {
           <TableBody>
             {expandedTasks.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-12">
+                <TableCell colSpan={7} className="text-center py-12">
                   <p className="text-muted-foreground">No tasks found</p>
                 </TableCell>
               </TableRow>
@@ -244,6 +249,11 @@ export function TasksTable({ tasks, onDelete }: TasksTableProps) {
                   <TableRow 
                     key={`${assignment.task.id}-${assignment.assignee}-${index}`}
                   >
+                    <TableCell>
+                      <div className="font-mono text-sm font-medium text-muted-foreground">
+                        {assignment.task.task_no || 'N/A'}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-start gap-3">
                         <div className="flex-1 min-w-0">
@@ -262,6 +272,13 @@ export function TasksTable({ tasks, onDelete }: TasksTableProps) {
                             <p className="text-sm text-muted-foreground mt-0.5 line-clamp-1">
                               {assignment.task.description}
                             </p>
+                          )}
+                          {assignment.task.delegated_from_staff_id && (
+                            <div className="mt-1">
+                              <Badge variant="secondary" className="text-xs bg-purple-100 text-purple-800">
+                                Delegated from {assignment.task.delegated_by_staff_name || 'Unknown'}
+                              </Badge>
+                            </div>
                           )}
                         </div>
                       </div>

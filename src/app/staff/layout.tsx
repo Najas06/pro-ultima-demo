@@ -51,7 +51,7 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
     >
       <StaffSidebar variant="inset" />
       <SidebarInset>
-        <SiteHeader />
+        <SiteHeader userName={user?.name} userRole={user?.role} />
         <div className="flex flex-1 flex-col">
           <RealtimeTaskUpdate />
           {children}

@@ -17,6 +17,11 @@ export interface Task {
   is_repeated: boolean;
   repeat_config?: TaskRepeatConfig;
   support_files?: string[];
+  task_no?: string; // Task number from database (e.g., "T002")
+  delegated_from_staff_id?: string | null; // ID of staff who delegated (from task_delegations)
+  delegated_by_staff_name?: string | null; // Name of staff who delegated (for display)
+  delegated_to_staff_id?: string | null; // ID of staff who received delegation
+  delegated_to_staff_name?: string | null; // Name of staff who received delegation
 }
 
 export interface TaskAssignment {
@@ -135,7 +140,7 @@ export interface TaskFormData {
   start_date?: string;
   is_repeated: boolean;
   repeat_config?: TaskRepeatConfig;
-  support_files?: File[];
+  support_files?: string[];
 }
 
 export interface UpdateTaskFormData extends TaskFormData {

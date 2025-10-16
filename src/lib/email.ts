@@ -74,7 +74,6 @@ export async function sendTaskAssignmentEmail(
           .task-card { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
           .badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; }
           .priority { background-color: ${priorityColor}; color: white; }
-          .status { background-color: #e5e7eb; color: #374151; }
           .button { display: inline-block; padding: 12px 24px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; margin-top: 20px; }
           .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px; }
         </style>
@@ -87,7 +86,7 @@ export async function sendTaskAssignmentEmail(
           </div>
           <div class="content">
             <p>Hi ${assigneeName},</p>
-            <p>${assignedBy ? `<strong>${assignedBy}</strong> has assigned` : 'You have been assigned'} a new task:</p>
+            <p>You have been assigned a new task:</p>
             
             <div class="task-card">
               <h2 style="margin-top: 0; color: #111827;">${task.title}</h2>
@@ -95,7 +94,6 @@ export async function sendTaskAssignmentEmail(
               
               <div style="margin: 15px 0;">
                 <span class="badge priority">${task.priority.toUpperCase()}</span>
-                <span class="badge status">${task.status.replace('_', ' ').toUpperCase()}</span>
               </div>
               
               ${task.due_date ? `
@@ -127,6 +125,178 @@ export async function sendTaskAssignmentEmail(
   return sendEmail({
     to: assigneeEmail,
     subject: `New Task Assigned: ${task.title}`,
+    html,
+  });
+}
+
+/**
+ * Send team task assignment notification to team leader
+ */
+export async function sendTeamTaskAssignmentEmail(
+  task: Task,
+  teamName: string,
+  leaderEmail: string,
+  leaderName: string,
+  teamMemberCount: number
+) {
+  const priorityColor = {
+    low: '#3b82f6',
+    medium: '#f59e0b',
+    high: '#ef4444',
+    urgent: '#dc2626',
+  }[task.priority] || '#6b7280';
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; }
+          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+          .task-card { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+          .badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+          .priority { background-color: ${priorityColor}; color: white; }
+          .team-badge { background-color: #8b5cf6; color: white; }
+          .button { display: inline-block; padding: 12px 24px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; margin-top: 20px; }
+          .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1 style="margin: 0;">New Team Task Assigned</h1>
+            <p style="margin: 10px 0 0 0; opacity: 0.9;">A new task has been assigned to your team</p>
+          </div>
+          <div class="content">
+            <p>Hi ${leaderName},</p>
+            <p>A new task has been assigned to <strong>${teamName}</strong>:</p>
+            
+            <div class="task-card">
+              <h2 style="margin-top: 0; color: #111827;">${task.title}</h2>
+              ${task.description ? `<p style="color: #6b7280;">${task.description}</p>` : ''}
+              
+              <div style="margin: 15px 0;">
+                <span class="badge priority">${task.priority.toUpperCase()}</span>
+                <span class="badge team-badge">TEAM TASK</span>
+              </div>
+              
+              ${task.due_date ? `
+                <p style="margin: 10px 0; color: #6b7280;">
+                  <strong>Due Date:</strong> ${new Date(task.due_date).toLocaleDateString('en-US', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}
+                </p>
+              ` : ''}
+            </div>
+            
+            
+            <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/staff/tasks" class="button">
+              View Task
+            </a>
+            
+            <div class="footer">
+              <p>This is an automated email from ProUltima Task Manager.</p>
+              <p>Please do not reply to this email.</p>
+            </div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to: leaderEmail,
+    subject: `New Team Task: ${task.title}`,
+    html,
+  });
+}
+
+/**
+ * Send task status change notification to admin
+ */
+export async function sendTaskStatusChangeEmail(
+  task: Task,
+  adminEmail: string,
+  staffName: string,
+  oldStatus: string,
+  newStatus: string
+) {
+  const statusColors = {
+    backlog: '#6b7280',
+    todo: '#3b82f6',
+    in_progress: '#f59e0b',
+    completed: '#10b981',
+  };
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; }
+          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+          .task-card { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+          .status-change { display: flex; align-items: center; gap: 10px; margin: 15px 0; }
+          .status-badge { padding: 6px 12px; border-radius: 12px; font-size: 14px; font-weight: 600; color: white; }
+          .arrow { font-size: 20px; color: #6b7280; }
+          .button { display: inline-block; padding: 12px 24px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; margin-top: 20px; }
+          .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1 style="margin: 0;">Task Status Updated</h1>
+            <p style="margin: 10px 0 0 0; opacity: 0.9;">A task status has been changed</p>
+          </div>
+          <div class="content">
+            <p>Hi Admin,</p>
+            <p><strong>${staffName}</strong> has updated a task status:</p>
+            
+            <div class="task-card">
+              <h2 style="margin-top: 0; color: #111827;">${task.title}</h2>
+              <p style="color: #6b7280;">Task #${task.task_no || 'N/A'}</p>
+              
+              <div class="status-change">
+                <span class="status-badge" style="background-color: ${statusColors[oldStatus as keyof typeof statusColors]}">
+                  ${oldStatus.replace('_', ' ').toUpperCase()}
+                </span>
+                <span class="arrow">→</span>
+                <span class="status-badge" style="background-color: ${statusColors[newStatus as keyof typeof statusColors]}">
+                  ${newStatus.replace('_', ' ').toUpperCase()}
+                </span>
+              </div>
+              
+              ${task.due_date ? `
+                <p style="margin: 10px 0; color: #6b7280;">
+                  <strong>Due Date:</strong> ${new Date(task.due_date).toLocaleDateString()}
+                </p>
+              ` : ''}
+            </div>
+            
+            <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/admin/tasks" class="button">
+              View Task
+            </a>
+            
+            <div class="footer">
+              <p>This is an automated email from ProUltima Task Manager.</p>
+            </div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to: adminEmail,
+    subject: `Task Status Changed: ${task.title}`,
     html,
   });
 }
@@ -728,6 +898,128 @@ export async function sendMaintenanceRejectionEmail(
   return sendEmail({
     to: staffEmail,
     subject: 'Your Maintenance Request Has Been Rejected',
+    html,
+  });
+}
+
+/**
+ * Send task rejection notification to staff
+ */
+export async function sendTaskRejectionEmail(
+  task: Task,
+  staffEmail: string,
+  staffName: string,
+  rejectedBy: string
+) {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; text-align: center; }
+          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+          .task-info { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+          .button { display: inline-block; padding: 12px 24px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; margin-top: 20px; }
+          .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1 style="margin: 0;">❌ Task Rejected</h1>
+          </div>
+          <div class="content">
+            <p>Hi ${staffName},</p>
+            
+            <p><strong>${rejectedBy} rejected your task: ${task.title}</strong></p>
+            
+            <div class="task-info">
+              <p style="margin: 10px 0;"><strong>Your task is back in progress</strong></p>
+              <p style="margin: 10px 0;">Priority: ${task.priority.toUpperCase()}</p>
+              ${task.due_date ? `<p style="margin: 10px 0;">Due Date: ${new Date(task.due_date).toLocaleDateString('en-US', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+              })}</p>` : ''}
+            </div>
+            
+            <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/staff/tasks" class="button">
+              View Task
+            </a>
+            
+            <div class="footer">
+              <p>This is an automated email from ProUltima Task Manager.</p>
+            </div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to: staffEmail,
+    subject: `Task Rejected: ${task.title}`,
+    html,
+  });
+}
+
+/**
+ * Send task approval notification to staff
+ */
+export async function sendTaskApprovalEmail(
+  task: Task,
+  staffEmail: string,
+  staffName: string,
+  approvedBy: string
+) {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; text-align: center; }
+          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+          .task-info { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+          .button { display: inline-block; padding: 12px 24px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; margin-top: 20px; }
+          .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1 style="margin: 0;">✅ Task Approved</h1>
+          </div>
+          <div class="content">
+            <p>Hi ${staffName},</p>
+            
+            <p><strong>${approvedBy} approved your task: ${task.title}</strong></p>
+            
+            <div class="task-info">
+              <p style="margin: 10px 0;"><strong>Task completed successfully</strong></p>
+              <p style="margin: 10px 0;">Priority: ${task.priority.toUpperCase()}</p>
+            </div>
+            
+            <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/staff/tasks" class="button">
+              View Tasks
+            </a>
+            
+            <div class="footer">
+              <p>This is an automated email from ProUltima Task Manager.</p>
+            </div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to: staffEmail,
+    subject: `Task Approved: ${task.title}`,
     html,
   });
 }

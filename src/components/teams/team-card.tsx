@@ -24,8 +24,7 @@ import {
   Edit, 
   Trash2, 
   MoreVertical,
-  Crown,
-  UserCheck
+  Crown
 } from "lucide-react";
 import type { Team } from "@/types";
 import { useTeams } from "@/hooks/use-teams";
@@ -163,25 +162,6 @@ export function TeamCard({ team, onEdit, onDelete, isDeleting }: TeamCardProps) 
           </div>
         </div>
 
-        {/* Team Members Preview */}
-        {memberCount > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <UserCheck className="w-4 h-4 text-muted-foreground" />
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Team Members
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Badge 
-                variant="secondary" 
-                className="text-xs py-1 px-2"
-              >
-                {memberCount} {memberCount === 1 ? 'member' : 'members'}
-              </Badge>
-            </div>
-          </div>
-        )}
       </CardContent>
 
       {/* Card Footer - Clean footer with just stats */}
