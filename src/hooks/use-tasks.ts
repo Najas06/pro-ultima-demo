@@ -30,11 +30,38 @@ export function useTasks() {
   const { data: tasks = [], isLoading, error, refetch } = useQuery<Task[]>({
     queryKey: ['tasks'],
     queryFn: async () => {
-      // Fetch tasks
+      // Fetch tasks with staff and team assignments
       const { data: tasksData, error: tasksError } = await supabase
         .from('tasks')
-        .select('*')
+        .select(`
+          *,
+          assigned_staff:task_assignments(
+            id,
+            staff_id,
+            staff:staff(
+              id,
+              name,
+              email,
+              role,
+              department,
+              branch,
+              profile_image_url
+            )
+          ),
+          assigned_teams:task_team_assignments(
+            id,
+            team_id,
+            team:teams(
+              id,
+              name,
+              leader_id,
+              branch
+            )
+          )
+        `)
         .order('created_at', { ascending: false });
+
+      console.log('📊 Raw tasksData from Supabase:', JSON.stringify(tasksData?.slice(0, 1), null, 2));
 
       if (tasksError) throw tasksError;
       
@@ -66,16 +93,75 @@ export function useTasks() {
         }
       });
       
-      // Map tasks with delegation info
-      const tasksWithDelegation = (tasksData || []).map(task => ({
-        ...task,
-        delegated_from_staff_id: delegationMap.get(task.id)?.delegated_from_staff_id || null,
-        delegated_by_staff_name: delegationMap.get(task.id)?.delegated_by_staff_name || null,
-        delegated_to_staff_id: delegationMap.get(task.id)?.delegated_to_staff_id || null,
-        delegated_to_staff_name: delegationMap.get(task.id)?.delegated_to_staff_name || null
+      // Map tasks with delegation info and ensure arrays are always present
+      const tasksWithEnrichedData = await Promise.all((tasksData || []).map(async (task) => {
+        let enrichedStaff = task.assigned_staff || [];
+        
+        // FALLBACK: If assigned_staff is empty but assigned_staff_ids has data, fetch directly
+        if ((!enrichedStaff || enrichedStaff.length === 0) && task.assigned_staff_ids && task.assigned_staff_ids.length > 0) {
+          console.log(`🔄 Fetching staff details directly for task ${task.id} with staff IDs:`, task.assigned_staff_ids);
+          
+          const { data: staffData } = await supabase
+            .from('staff')
+            .select('id, name, email, role, department, branch, profile_image_url')
+            .in('id', task.assigned_staff_ids);
+          
+          // Transform to match TaskAssignment structure
+          enrichedStaff = (staffData || []).map(staff => ({
+            id: `fallback-${staff.id}`,
+            staff_id: staff.id,
+            staff: staff
+          }));
+          
+          console.log(`✅ Fetched ${enrichedStaff.length} staff members directly`);
+        }
+        
+        // TEAM FALLBACK: If this is a team assignment and we have team IDs, fetch team members
+        if (task.allocation_mode === 'team' && task.assigned_team_ids && task.assigned_team_ids.length > 0) {
+          console.log(`🔄 Fetching team members for task ${task.id} with team IDs:`, task.assigned_team_ids);
+          
+          // Fetch team members from team_members table
+          const { data: teamMembersData } = await supabase
+            .from('team_members')
+            .select(`
+              staff_id,
+              staff:staff(
+                id,
+                name,
+                email,
+                role,
+                department,
+                branch,
+                profile_image_url
+              )
+            `)
+            .in('team_id', task.assigned_team_ids);
+          
+          // Transform to match TaskAssignment structure
+          const teamStaff = (teamMembersData || []).map(member => ({
+            id: `team-${member.staff_id}`,
+            staff_id: member.staff_id,
+            staff: member.staff
+          }));
+          
+          // Combine with existing staff (if any)
+          enrichedStaff = [...enrichedStaff, ...teamStaff];
+          
+          console.log(`✅ Fetched ${teamStaff.length} team members for ${task.assigned_team_ids.length} teams`);
+        }
+        
+        return {
+          ...task,
+          assigned_staff: enrichedStaff,
+          assigned_teams: task.assigned_teams || [],
+          delegated_from_staff_id: delegationMap.get(task.id)?.delegated_from_staff_id || null,
+          delegated_by_staff_name: delegationMap.get(task.id)?.delegated_by_staff_name || null,
+          delegated_to_staff_id: delegationMap.get(task.id)?.delegated_to_staff_id || null,
+          delegated_to_staff_name: delegationMap.get(task.id)?.delegated_to_staff_name || null
+        };
       }));
       
-      return tasksWithDelegation;
+      return tasksWithEnrichedData;
     },
     staleTime: 5 * 60 * 1000, // 5 minutes - data fresh for 5 min
     refetchOnWindowFocus: false, // Disable - we have real-time

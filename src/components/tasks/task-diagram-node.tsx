@@ -14,8 +14,11 @@ import {
 export type TaskDiagramNodeData = {
   data: {
     label: string;
-    schema: { title: string; value: string; handleId?: string }[];
-    nodeType?: 'task' | 'team' | 'member';
+    schema: { title: string; value: string; handleId?: string; link?: string }[];
+    nodeType?: 'task' | 'team' | 'member' | 'file';
+    support_files?: string[]; // Add support for files
+    fileUrl?: string; // For file nodes
+    isImage?: boolean; // For file nodes
   };
 };
 
@@ -26,10 +29,22 @@ const TaskDiagramNode = memo(({ data }: TaskDiagramNodeData) => {
   const headerColor = 
     nodeType === 'task' ? 'from-blue-500/20 to-blue-500/5' :
     nodeType === 'team' ? 'from-purple-500/20 to-purple-500/5' :
+    nodeType === 'file' ? 'from-orange-500/20 to-orange-500/5' : // Add file color
     'from-green-500/20 to-green-500/5';
 
   return (
     <DatabaseSchemaNode className="p-0 min-w-[280px] max-w-[320px] hover:shadow-lg transition-shadow duration-200">
+      {/* Show image preview for file nodes */}
+      {data.nodeType === 'file' && data.isImage && data.fileUrl && (
+        <div className="p-2">
+          <img 
+            src={data.fileUrl} 
+            alt={data.label}
+            className="w-full h-32 object-cover rounded"
+          />
+        </div>
+      )}
+      
       <DatabaseSchemaNodeHeader className={`bg-gradient-to-r ${headerColor} text-sm font-semibold`}>
         <div className="truncate" title={data.label}>
           {data.label}
@@ -42,7 +57,30 @@ const TaskDiagramNode = memo(({ data }: TaskDiagramNodeData) => {
               {entry.title}
             </DatabaseSchemaTableCell>
             <DatabaseSchemaTableCell className="pr-4 pl-2">
-              {entry.handleId ? (
+              {entry.handleId?.startsWith('file-link') ? (
+                <a 
+                  href={data.fileUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline text-sm"
+                >
+                  {entry.value}
+                </a>
+              ) : entry.handleId === 'files' ? (
+                <a 
+                  href="#" 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    // Open first file or show files dialog
+                    if (data.support_files && data.support_files.length > 0) {
+                      window.open(data.support_files[0], '_blank');
+                    }
+                  }}
+                  className="text-primary hover:underline text-sm cursor-pointer"
+                >
+                  {entry.value}
+                </a>
+              ) : entry.handleId ? (
                 <LabeledHandle
                   id={entry.handleId}
                   title={entry.value}

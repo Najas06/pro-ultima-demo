@@ -3,6 +3,8 @@
 import { memo } from "react";
 import { Position } from "@xyflow/react";
 import { LabeledHandle } from "@/components/ui/react-flow/labeled-handle";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DatabaseSchemaNode,
   DatabaseSchemaNodeHeader,
@@ -15,6 +17,8 @@ export type MemberNodeData = {
   data: {
     label: string;
     schema: { title: string; value: string }[];
+    isLeader?: boolean; // Add leader flag
+    profileImage?: string; // Add profile image URL
   };
 };
 
@@ -29,8 +33,25 @@ const MemberNode = memo(({ data }: MemberNodeData) => {
           className="absolute left-0 top-1/2 -translate-y-1/2"
           handleClassName="!absolute"
         />
-        <div className="truncate" title={data.label}>
-          {data.label}
+        <div className="flex items-center gap-2 w-full">
+          {/* Profile Image */}
+          <Avatar className="h-8 w-8 flex-shrink-0">
+            <AvatarImage src={data.profileImage} alt={data.label} />
+            <AvatarFallback className="text-xs">
+              {data.label.split(' ').map(n => n[0]).join('').toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          
+          <div className="flex items-center gap-2 truncate flex-1">
+            <span className="truncate font-semibold" title={data.label}>
+              {data.label}
+            </span>
+            {data.isLeader && (
+              <Badge variant="secondary" className="text-xs px-1.5 py-0.5">
+                Leader
+              </Badge>
+            )}
+          </div>
         </div>
       </DatabaseSchemaNodeHeader>
       <DatabaseSchemaNodeBody className="text-xs">
