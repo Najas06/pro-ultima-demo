@@ -5,9 +5,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { createStaff } from "@/lib/actions/staffActions";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import { useSystemOptions } from "@/hooks/use-system-options";
 
 interface StaffFormDialogProps {
   trigger: React.ReactNode;
@@ -15,6 +17,7 @@ interface StaffFormDialogProps {
 
 export function StaffFormDialog({ trigger }: StaffFormDialogProps) {
   const router = useRouter();
+  const { roles, departments, branches } = useSystemOptions();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -115,33 +118,63 @@ export function StaffFormDialog({ trigger }: StaffFormDialogProps) {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="role">Role *</Label>
-              <Input
-                id="role"
+              <Select
                 value={formData.role}
-                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                onValueChange={(value) => setFormData({ ...formData, role: value })}
                 required
-              />
+              >
+                <SelectTrigger id="role">
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  {roles.map((role) => (
+                    <SelectItem key={role} value={role}>
+                      {role}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="department">Department *</Label>
-              <Input
-                id="department"
+              <Select
                 value={formData.department}
-                onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                onValueChange={(value) => setFormData({ ...formData, department: value })}
                 required
-              />
+              >
+                <SelectTrigger id="department">
+                  <SelectValue placeholder="Select department" />
+                </SelectTrigger>
+                <SelectContent>
+                  {departments.map((dept) => (
+                    <SelectItem key={dept} value={dept}>
+                      {dept}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="branch">Branch</Label>
-              <Input
-                id="branch"
+              <Select
                 value={formData.branch}
-                onChange={(e) => setFormData({ ...formData, branch: e.target.value })}
-              />
+                onValueChange={(value) => setFormData({ ...formData, branch: value })}
+              >
+                <SelectTrigger id="branch">
+                  <SelectValue placeholder="Select branch (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {branches.map((branch) => (
+                    <SelectItem key={branch} value={branch}>
+                      {branch}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">

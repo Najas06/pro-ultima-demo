@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { useStaff } from "@/hooks/use-staff";
 import { useTeams } from "@/hooks/use-teams";
+import { useSystemOptions } from "@/hooks/use-system-options";
 import { toast } from "sonner";
 import type { Team } from "@/types";
 
@@ -70,6 +71,7 @@ export function TeamFormDialog({
 }: TeamFormDialogProps) {
   const { staff } = useStaff();
   const { teamMembers } = useTeams();
+  const { branches } = useSystemOptions();
   const isEditMode = !!team;
 
   // Transform staff to match expected interface
@@ -183,16 +185,6 @@ export function TeamFormDialog({
   // ============================================
   // DROPDOWN OPTIONS
   // ============================================
-  const branches = [
-    { value: "salem", label: "Salem" },
-    { value: "chennai", label: "Chennai" },
-    { value: "salem-elcot", label: "Salem Elcot" },
-    { value: "kanchipuram", label: "Kanchipuram" },
-    { value: "madurai", label: "Madurai" },
-    { value: "rajapalayam", label: "Rajapalayam" },
-    { value: "housr", label: "Housr" },
-  ];
-
   // Available members (excluding the selected leader)
   const availableMembers = useMemo(() => {
     return employees.filter(emp => emp.id !== formData.leader_id);
@@ -276,8 +268,8 @@ export function TeamFormDialog({
                 </SelectTrigger>
                 <SelectContent>
                   {branches.map((branch) => (
-                    <SelectItem key={branch.value} value={branch.value}>
-                      {branch.label}
+                    <SelectItem key={branch} value={branch}>
+                      {branch}
                     </SelectItem>
                   ))}
                 </SelectContent>

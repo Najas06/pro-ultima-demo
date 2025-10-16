@@ -31,6 +31,7 @@ import {
   Search
 } from "lucide-react";
 import { useStaff } from "@/hooks/use-staff";
+import { useSystemOptions } from "@/hooks/use-system-options";
 import { toast } from "sonner";
 import { StaffCard } from "./staff-card";
 import { StaffCardSkeleton } from "./staff-card-skeleton";
@@ -64,6 +65,11 @@ export function EmployeeFormOptimized() {
     isUpdating,
     isDeleting
   } = useStaff();
+
+  // ============================================
+  // SYSTEM OPTIONS: Dynamic roles, departments, branches
+  // ============================================
+  const { roles: roleOptions, departments: departmentOptions, branches: branchOptions } = useSystemOptions();
 
   // Transform offline staff to match expected interface
   const employees = staff.map(s => ({
@@ -248,33 +254,22 @@ export function EmployeeFormOptimized() {
   };
 
   // ============================================
-  // DROPDOWN OPTIONS
+  // DROPDOWN OPTIONS (Dynamic from database)
   // ============================================
-  const roles = [
-    { value: "team-leader", label: "Team Leader" },
-    { value: "project-manager", label: "Project Manager" },
-    { value: "detailer", label: "Detailer" },
-    { value: "admin", label: "Admin" },
-    { value: "accountant", label: "Accountant" },
-  ];
+  const roles = roleOptions.map(role => ({ 
+    value: role.toLowerCase().replace(/\s+/g, '-'), 
+    label: role 
+  }));
 
-  const departments = [
-    { value: "engineering", label: "Engineering" },
-    { value: "design", label: "Design" },
-    { value: "product", label: "Product" },
-    { value: "marketing", label: "Marketing" },
-    { value: "finance", label: "Finance" },
-  ];
+  const departments = departmentOptions.map(dept => ({ 
+    value: dept.toLowerCase().replace(/\s+/g, '-'), 
+    label: dept 
+  }));
 
-  const branches = [
-    { value: "salem", label: "Salem" },
-    { value: "chennai", label: "Chennai" },
-    { value: "salem-elcot", label: "Salem Elcot" },
-    { value: "kanchipuram", label: "Kanchipuram" },
-    { value: "madurai", label: "Madurai" },
-    { value: "rajapalayam", label: "Rajapalayam" },
-    { value: "housr", label: "Housr" },
-  ];
+  const branches = branchOptions.map(branch => ({ 
+    value: branch.toLowerCase().replace(/\s+/g, '-'), 
+    label: branch 
+  }));
 
   // ============================================
   // RENDER
