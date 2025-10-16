@@ -274,10 +274,15 @@ export function TasksTable({ tasks, onDelete }: TasksTableProps) {
                             </p>
                           )}
                           {assignment.task.delegated_from_staff_id && (
-                            <div className="mt-1">
+                            <div className="mt-1 space-y-1">
                               <Badge variant="secondary" className="text-xs bg-purple-100 text-purple-800">
                                 Delegated from {assignment.task.delegated_by_staff_name || 'Unknown'}
                               </Badge>
+                              {assignment.task.delegation_notes && (
+                                <p className="text-xs text-muted-foreground italic pl-1 line-clamp-2">
+                                  Reason: {assignment.task.delegation_notes}
+                                </p>
+                              )}
                             </div>
                           )}
                         </div>

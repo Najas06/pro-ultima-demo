@@ -72,6 +72,7 @@ export function useTasks() {
           task_id,
           from_staff_id,
           to_staff_id,
+          notes,
           from_staff:staff!task_delegations_from_staff_id_fkey(id, name),
           to_staff:staff!task_delegations_to_staff_id_fkey(id, name)
         `)
@@ -88,7 +89,8 @@ export function useTasks() {
             delegated_from_staff_id: del.from_staff_id,
             delegated_by_staff_name: fromStaff?.name || null,
             delegated_to_staff_id: del.to_staff_id,
-            delegated_to_staff_name: toStaff?.name || null
+            delegated_to_staff_name: toStaff?.name || null,
+            delegation_notes: del.notes || null
           });
         }
       });
@@ -157,7 +159,8 @@ export function useTasks() {
           delegated_from_staff_id: delegationMap.get(task.id)?.delegated_from_staff_id || null,
           delegated_by_staff_name: delegationMap.get(task.id)?.delegated_by_staff_name || null,
           delegated_to_staff_id: delegationMap.get(task.id)?.delegated_to_staff_id || null,
-          delegated_to_staff_name: delegationMap.get(task.id)?.delegated_to_staff_name || null
+          delegated_to_staff_name: delegationMap.get(task.id)?.delegated_to_staff_name || null,
+          delegation_notes: delegationMap.get(task.id)?.delegation_notes || null
         };
       }));
       
