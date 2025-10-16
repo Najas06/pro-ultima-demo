@@ -438,7 +438,6 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
                           setIsEndDateOpen(false);
                         }}
                         initialFocus
-                        disabled={(date) => date < new Date()}
                       />
                     </PopoverContent>
                   </Popover>
@@ -708,7 +707,6 @@ export function TaskAllocationDialog({ trigger }: TaskAllocationDialogProps) {
                         setIsDueDateOpen(false);
                       }}
                       initialFocus
-                      disabled={(date) => date < new Date()}
                     />
                   </PopoverContent>
                 </Popover>

@@ -140,7 +140,7 @@ export interface TaskFormData {
   start_date?: string;
   is_repeated: boolean;
   repeat_config?: TaskRepeatConfig;
-  support_files?: File[];
+  support_files?: string[];
 }
 
 export interface UpdateTaskFormData extends TaskFormData {

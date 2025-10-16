@@ -656,7 +656,6 @@ export function TaskDetailsDialog({
                               setIsEndDateOpen(false);
                             }}
                             initialFocus
-                            disabled={(date) => date < new Date()}
                           />
                         </PopoverContent>
                       </Popover>

@@ -86,11 +86,8 @@ export async function createTask(formData: TaskFormData) {
 
     const supabase = await createClient();
 
-    // Upload support files if any
-    let supportFileUrls: string[] = [];
-    if (formData.support_files && formData.support_files.length > 0) {
-      supportFileUrls = await uploadSupportFiles(formData.support_files);
-    }
+    // Use support files URLs (already uploaded in the dialog)
+    const supportFileUrls: string[] = formData.support_files || [];
 
     // Create task record
     const taskData = {
@@ -273,11 +270,8 @@ export async function updateTask(formData: UpdateTaskFormData) {
 
     const supabase = await createClient();
 
-    // Upload new support files if any
-    let supportFileUrls: string[] = [];
-    if (formData.support_files && formData.support_files.length > 0) {
-      supportFileUrls = await uploadSupportFiles(formData.support_files);
-    }
+    // Use support files URLs (already uploaded in the dialog)
+    const supportFileUrls: string[] = formData.support_files || [];
 
     // Update task record
     const taskData = {
