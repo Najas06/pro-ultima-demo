@@ -16,6 +16,9 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { MultipleImageUpload } from '@/components/cashbook/multiple-image-upload';
+import { useTaskProofs } from '@/hooks/use-task-proofs';
 import type { MaintenanceRequest, MaintenanceFormData, MaintenanceCondition, MaintenanceRunningStatus } from '@/types/maintenance';
 import { format } from 'date-fns';
 
@@ -37,12 +40,17 @@ export function MaintenanceFormDialog({
   const { user } = useAuth();
   const { staff } = useStaff();
   const currentStaff = staff.find(s => s.id === user?.staffId);
+  const { uploadReceiptImage } = useTaskProofs();
   
   // Date states for DatePicker components
   const [reportMonth, setReportMonth] = useState<Date>(new Date());
   const [dateOfPurchase, setDateOfPurchase] = useState<Date>();
   const [warrantyStartDate, setWarrantyStartDate] = useState<Date>();
   const [warrantyEndDate, setWarrantyEndDate] = useState<Date>();
+  
+  // File upload states
+  const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
   
   const [formData, setFormData] = useState<MaintenanceFormData>({
     serial_number: '',
@@ -101,7 +109,7 @@ export function MaintenanceFormDialog({
     }
   }, [initialData, currentStaff?.branch]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!user?.staffId) {
@@ -114,12 +122,28 @@ export function MaintenanceFormDialog({
     const warrantyStartFormatted = warrantyStartDate ? format(warrantyStartDate, "yyyy-MM-dd") : undefined;
     const warrantyEndFormatted = warrantyEndDate ? format(warrantyEndDate, "yyyy-MM-dd") : undefined;
 
+    // Upload attachments if provided
+    let attachmentUrls: string[] = [];
+    if (attachmentFiles.length > 0) {
+      setUploading(true);
+      try {
+        attachmentUrls = await Promise.all(
+          attachmentFiles.map(file => uploadReceiptImage(file, `maintenance-${Date.now()}`))
+        );
+      } catch (error) {
+        console.error('Error uploading files:', error);
+        toast.error('Failed to upload some files');
+      }
+      setUploading(false);
+    }
+
     onSubmit({
       ...formData,
       report_month: reportMonthFormatted,
       date_of_purchase: dateOfPurchaseFormatted,
       warranty_start_date: warrantyStartFormatted,
       warranty_end_date: warrantyEndFormatted,
+      attachment_urls: attachmentUrls.length > 0 ? attachmentUrls : undefined,
       staff_id: user.staffId,
     });
   };
@@ -268,21 +292,30 @@ export function MaintenanceFormDialog({
             </div>
           </div>
 
+          {/* File Upload Section */}
+          <MultipleImageUpload
+            onImagesChange={setAttachmentFiles}
+            maxImages={10}
+            maxSizeMB={10}
+            acceptAllTypes={true}
+            label="Attach Files (Any type, max 10MB each)"
+          />
+
           {/* Submit Button */}
           <div className="flex justify-end gap-2 pt-4 border-t">
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              disabled={isSubmitting}
+              disabled={isSubmitting || uploading}
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? (
+            <Button type="submit" disabled={isSubmitting || uploading}>
+              {isSubmitting || uploading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {initialData ? 'Updating...' : 'Submitting...'}
+                  {uploading ? 'Uploading...' : (initialData ? 'Updating...' : 'Submitting...')}
                 </>
               ) : (
                 initialData ? 'Update Request' : 'Add System Record'

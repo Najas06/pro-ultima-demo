@@ -13,12 +13,13 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { CheckCircle, XCircle, Loader2, User, MapPin, Calendar, Package, Clock } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2, User, MapPin, Calendar, Package, Clock, Eye, Download, FileText, File, Archive } from 'lucide-react';
 import { toast } from 'sonner';
 import type { MaintenanceRequest } from '@/types/maintenance';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface MaintenanceApprovalDialogProps {
   request: MaintenanceRequest;
@@ -30,6 +31,16 @@ export function MaintenanceApprovalDialog({ request, isOpen, onOpenChange }: Mai
   const { user } = useAuth();
   const { approveRequest, rejectRequest, isApproving, isRejecting } = useMaintenanceRequests();
   const [adminNotes, setAdminNotes] = useState('');
+
+  const getFileIcon = (url: string) => {
+    const ext = url.split('.').pop()?.toLowerCase();
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext || '')) return 'image';
+    if (['pdf'].includes(ext || '')) return 'pdf';
+    if (['doc', 'docx'].includes(ext || '')) return 'doc';
+    if (['xls', 'xlsx'].includes(ext || '')) return 'excel';
+    if (['zip', 'rar', '7z'].includes(ext || '')) return 'zip';
+    return 'file';
+  };
 
   const handleApprove = () => {
     if (!user?.id) {
@@ -217,6 +228,55 @@ export function MaintenanceApprovalDialog({ request, isOpen, onOpenChange }: Mai
                 )}
               </div>
             </div>
+          )}
+
+          {/* Attachment Gallery */}
+          {request.attachment_urls && request.attachment_urls.length > 0 && (
+            <>
+              <Separator />
+              <Card>
+                <CardHeader>
+                  <CardTitle>Attached Files ({request.attachment_urls.length})</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-3 gap-4">
+                    {request.attachment_urls.map((url, index) => {
+                      const fileType = getFileIcon(url);
+                      const fileName = url.split('/').pop() || `File ${index + 1}`;
+                      
+                      return (
+                        <div key={index} className="relative group rounded-xl border overflow-hidden">
+                          {fileType === 'image' ? (
+                            <img src={url} className="h-40 w-full object-cover" alt={fileName} />
+                          ) : (
+                            <div className="h-40 bg-muted flex flex-col items-center justify-center p-2">
+                              {fileType === 'pdf' && <FileText className="h-12 w-12 text-red-600" />}
+                              {fileType === 'doc' && <FileText className="h-12 w-12 text-blue-600" />}
+                              {fileType === 'excel' && <FileText className="h-12 w-12 text-green-600" />}
+                              {fileType === 'zip' && <Archive className="h-12 w-12 text-orange-600" />}
+                              {fileType === 'file' && <File className="h-12 w-12 text-gray-600" />}
+                              <p className="text-xs mt-2 text-center truncate w-full">{fileName}</p>
+                            </div>
+                          )}
+                          <div className="p-2 flex gap-2">
+                            <Button size="sm" variant="outline" onClick={() => window.open(url, '_blank')}>
+                              <Eye className="h-3 w-3 mr-1" />
+                              View
+                            </Button>
+                            <Button size="sm" variant="secondary" asChild>
+                              <a href={url} download={fileName}>
+                                <Download className="h-3 w-3 mr-1" />
+                                Download
+                              </a>
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            </>
           )}
 
           {/* Action Buttons (only for pending requests) */}
