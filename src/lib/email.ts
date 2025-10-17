@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
+import { format } from 'date-fns';
 import type { Task } from '@/types';
-import type { MaintenanceRequest } from '@/types/maintenance';
+import type { MaintenanceRequest, PurchaseRequisition } from '@/types/maintenance';
 
 // Create reusable transporter
 let transporter: nodemailer.Transporter | null = null;
@@ -1020,6 +1021,153 @@ export async function sendTaskApprovalEmail(
   return sendEmail({
     to: staffEmail,
     subject: `Task Approved: ${task.title}`,
+    html,
+  });
+}
+
+/**
+ * Send purchase requisition submission notification to admin
+ */
+export async function sendPurchaseSubmissionEmail({
+  adminEmail,
+  staffName,
+  staffEmail,
+  purchaseItem,
+  branch,
+  requestDate,
+}: {
+  adminEmail: string;
+  staffName: string;
+  staffEmail: string;
+  purchaseItem: string;
+  branch: string;
+  requestDate: string;
+}) {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; text-align: center; }
+          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+          .info-box { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+          .button { display: inline-block; padding: 12px 24px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; margin-top: 20px; }
+          .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1 style="margin: 0;">🛒 New Purchase Requisition</h1>
+          </div>
+          <div class="content">
+            <p>A new purchase requisition has been submitted and requires your review.</p>
+            
+            <div class="info-box">
+              <h3 style="margin-top: 0; color: #667eea;">Purchase Details</h3>
+              <p><strong>Staff:</strong> ${staffName}</p>
+              <p><strong>Email:</strong> ${staffEmail}</p>
+              <p><strong>Branch:</strong> ${branch}</p>
+              <p><strong>Purchase Item:</strong> ${purchaseItem}</p>
+              <p><strong>Requested:</strong> ${format(new Date(requestDate), 'PPP')}</p>
+            </div>
+            
+            <p>Please log in to the admin panel to review and approve/reject this requisition.</p>
+            
+            <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/admin/maintenance" class="button">
+              View Purchase Requisition
+            </a>
+            
+            <div class="footer">
+              <p>This is an automated email from ProUltima Management System.</p>
+              <p>Please do not reply to this email.</p>
+            </div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to: adminEmail,
+    subject: `New Purchase Requisition - ${purchaseItem}`,
+    html,
+  });
+}
+
+/**
+ * Send purchase requisition status update notification to staff
+ */
+export async function sendPurchaseStatusEmail({
+  staffEmail,
+  staffName,
+  purchaseItem,
+  status,
+  adminNotes,
+  rejectionReason,
+}: {
+  staffEmail: string;
+  staffName: string;
+  purchaseItem: string;
+  status: 'approved' | 'rejected';
+  adminNotes?: string;
+  rejectionReason?: string;
+}) {
+  const isApproved = status === 'approved';
+  
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: ${isApproved ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'}; color: white; padding: 30px; border-radius: 10px 10px 0 0; text-align: center; }
+          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+          .info-box { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+          .status-badge { padding: 8px 16px; border-radius: 12px; font-size: 16px; font-weight: 600; color: white; background: ${isApproved ? '#10b981' : '#ef4444'}; display: inline-block; }
+          .button { display: inline-block; padding: 12px 24px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; margin-top: 20px; }
+          .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1 style="margin: 0;">${isApproved ? '✅' : '❌'} Purchase Requisition ${isApproved ? 'Approved' : 'Rejected'}</h1>
+          </div>
+          <div class="content">
+            <p>Hi ${staffName},</p>
+            <p>Your purchase requisition has been <strong>${status}</strong> by the admin.</p>
+            
+            <div class="info-box">
+              <h3 style="margin-top: 0; color: ${isApproved ? '#10b981' : '#ef4444'};">Requisition Details</h3>
+              <p><strong>Purchase Item:</strong> ${purchaseItem}</p>
+              <p><strong>Status:</strong> <span class="status-badge">${status.toUpperCase()}</span></p>
+              ${adminNotes ? `<p><strong>Admin Notes:</strong> ${adminNotes}</p>` : ''}
+              ${rejectionReason ? `<p><strong>Rejection Reason:</strong> ${rejectionReason}</p>` : ''}
+            </div>
+            
+            <p>You can view the full details in your maintenance dashboard.</p>
+            
+            <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/staff/maintenance" class="button">
+              View My Requisitions
+            </a>
+            
+            <div class="footer">
+              <p>This is an automated email from ProUltima Management System.</p>
+              <p>Please do not reply to this email.</p>
+            </div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to: staffEmail,
+    subject: `Purchase Requisition ${isApproved ? 'Approved' : 'Rejected'} - ${purchaseItem}`,
     html,
   });
 }

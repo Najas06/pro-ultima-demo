@@ -148,17 +148,6 @@ export function StaffSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
       </SidebarContent>
       <SidebarFooter className="gap-2">
         <NavUser user={data.user} />
-        <div className="px-2 pb-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
-            onClick={handleLogout}
-          >
-            <IconLogout className="mr-2 h-4 w-4" />
-            Logout
-          </Button>
-        </div>
       </SidebarFooter>
     </Sidebar>
   )

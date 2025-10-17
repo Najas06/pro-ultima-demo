@@ -32,6 +32,9 @@ export interface MaintenanceRequest {
   rejection_reason?: string;
   admin_notes?: string;
   
+  // Attachments
+  attachment_urls?: string[];
+  
   // Timestamps
   created_at: string;
   updated_at: string;
@@ -59,6 +62,47 @@ export interface MaintenanceFormData {
   condition: MaintenanceCondition;
   running_status: MaintenanceRunningStatus;
   branch: string;
+  attachment_urls?: string[];
+}
+
+// Purchase Requisition Types
+export interface PurchaseRequisition {
+  id: string;
+  staff_id: string;
+  name: string;
+  designation: string;
+  department: string;
+  branch: string;
+  purchase_item: string;
+  description?: string;
+  quotation_urls?: string[];
+  status: 'pending' | 'approved' | 'rejected';
+  requested_date: string;
+  approved_by?: string;
+  approved_at?: string;
+  rejection_reason?: string;
+  admin_notes?: string;
+  created_at: string;
+  updated_at: string;
+  staff?: {
+    name: string;
+    employee_id: string;
+    email: string;
+  };
+  admin?: {
+    name: string;
+    email: string;
+  };
+}
+
+export interface PurchaseRequisitionFormData {
+  name: string;
+  designation: string;
+  department: string;
+  branch: string;
+  purchase_item: string;
+  description?: string;
+  quotation_urls?: string[];
 }
 
 

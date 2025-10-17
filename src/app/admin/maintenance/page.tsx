@@ -2,10 +2,13 @@
 
 import { useState } from 'react';
 import { useMaintenanceRequests } from '@/hooks/use-maintenance-requests';
+import { usePurchaseRequisitions } from '@/hooks/use-purchase-requisitions';
 import { MaintenanceApprovalDialog } from '@/components/admin/maintenance-approval-dialog';
+import { PurchaseApprovalDialog } from '@/components/admin/purchase-approval-dialog';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, Clock, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { RefreshCw, Clock, CheckCircle2, XCircle, AlertCircle, ShoppingCart, Settings } from 'lucide-react';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -17,19 +20,30 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { MaintenanceRequest } from '@/types/maintenance';
+import type { MaintenanceRequest, PurchaseRequisition } from '@/types/maintenance';
 
 export default function AdminMaintenancePage() {
   const { requests, pendingCount, isLoading, refetch } = useMaintenanceRequests();
+  const { requisitions, isLoading: isPurchaseLoading, refetch: refetchPurchases } = usePurchaseRequisitions();
   const [selectedRequest, setSelectedRequest] = useState<MaintenanceRequest | null>(null);
+  const [selectedPurchase, setSelectedPurchase] = useState<PurchaseRequisition | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isPurchaseDialogOpen, setIsPurchaseDialogOpen] = useState(false);
 
-  // Calculate stats
+  // Calculate stats for maintenance
   const stats = {
     total: requests.length,
     pending: requests.filter(r => r.status === 'pending').length,
     approved: requests.filter(r => r.status === 'approved').length,
     rejected: requests.filter(r => r.status === 'rejected').length,
+  };
+
+  // Calculate stats for purchase requisitions
+  const purchaseStats = {
+    total: requisitions.length,
+    pending: requisitions.filter(r => r.status === 'pending').length,
+    approved: requisitions.filter(r => r.status === 'approved').length,
+    rejected: requisitions.filter(r => r.status === 'rejected').length,
   };
 
   const handleViewRequest = (request: MaintenanceRequest) => {
@@ -40,6 +54,16 @@ export default function AdminMaintenancePage() {
   const handleCloseDialog = () => {
     setIsDialogOpen(false);
     setSelectedRequest(null);
+  };
+
+  const handleViewPurchase = (purchase: PurchaseRequisition) => {
+    setSelectedPurchase(purchase);
+    setIsPurchaseDialogOpen(true);
+  };
+
+  const handleClosePurchaseDialog = () => {
+    setIsPurchaseDialogOpen(false);
+    setSelectedPurchase(null);
   };
 
   const getStatusBadge = (status: string) => {
@@ -70,17 +94,33 @@ export default function AdminMaintenancePage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Maintenance Management</h1>
           <p className="text-muted-foreground">
-            Review and approve maintenance requests from all branches
+            Review and approve maintenance requests and purchase requisitions
           </p>
         </div>
-        <Button variant="outline" onClick={() => refetch()}>
-          <RefreshCw className="mr-2 h-4 w-4" />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => refetch()}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Tabs for Maintenance and Purchases */}
+      <Tabs defaultValue="maintenance" className="w-full">
+        <TabsList>
+          <TabsTrigger value="maintenance" className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            Maintenance Requests ({stats.pending})
+          </TabsTrigger>
+          <TabsTrigger value="purchases" className="flex items-center gap-2">
+            <ShoppingCart className="h-4 w-4" />
+            Purchase Requisitions ({purchaseStats.pending})
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="maintenance" className="mt-6 space-y-6">
+          {/* Stats Cards */}
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Requests</CardTitle>
@@ -132,10 +172,10 @@ export default function AdminMaintenancePage() {
             </p>
           </CardContent>
         </Card>
-      </div>
+          </div>
 
-      {/* Requests Table */}
-      <Card>
+          {/* Requests Table */}
+          <Card>
         <CardHeader>
           <CardTitle>All Maintenance Requests</CardTitle>
           <CardDescription>
@@ -205,14 +245,150 @@ export default function AdminMaintenancePage() {
             </div>
           )}
         </CardContent>
-      </Card>
+          </Card>
+        </TabsContent>
 
-      {/* Approval Dialog */}
+        <TabsContent value="purchases" className="mt-6 space-y-6">
+          {/* Purchase Stats Cards */}
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Requisitions</CardTitle>
+                <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{purchaseStats.total}</div>
+                <p className="text-xs text-muted-foreground">
+                  All purchase requests
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Pending Approval</CardTitle>
+                <Clock className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-yellow-600">{purchaseStats.pending}</div>
+                <p className="text-xs text-muted-foreground">
+                  Requires your review
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Approved</CardTitle>
+                <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">{purchaseStats.approved}</div>
+                <p className="text-xs text-muted-foreground">
+                  {purchaseStats.approved > 0 ? `${Math.round((purchaseStats.approved / purchaseStats.total) * 100)}% approved` : 'No approvals yet'}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Rejected</CardTitle>
+                <XCircle className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-red-600">{purchaseStats.rejected}</div>
+                <p className="text-xs text-muted-foreground">
+                  {purchaseStats.rejected > 0 ? 'Rejected requisitions' : 'No rejections'}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Purchase Requisitions Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Purchase Requisitions</CardTitle>
+              <CardDescription>
+                Review and approve purchase requisitions from staff
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isPurchaseLoading ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              ) : requisitions.length === 0 ? (
+                <div className="text-center py-12">
+                  <ShoppingCart className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">No requisitions found</h3>
+                  <p className="text-muted-foreground">
+                    No purchase requisitions have been submitted yet
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto -mx-4 sm:mx-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>S.No</TableHead>
+                        <TableHead>Requested Date</TableHead>
+                        <TableHead>Staff Name</TableHead>
+                        <TableHead>Designation</TableHead>
+                        <TableHead>Branch</TableHead>
+                        <TableHead>Purchase Item</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {requisitions.map((req, index) => (
+                        <TableRow key={req.id} className="cursor-pointer hover:bg-muted/50" onClick={() => handleViewPurchase(req)}>
+                          <TableCell>{index + 1}</TableCell>
+                          <TableCell>{format(new Date(req.requested_date), 'MMM dd, yyyy')}</TableCell>
+                          <TableCell className="font-medium">{req.staff?.name || 'Unknown'}</TableCell>
+                          <TableCell>{req.designation}</TableCell>
+                          <TableCell>{req.branch}</TableCell>
+                          <TableCell>{req.purchase_item}</TableCell>
+                          <TableCell>{getStatusBadge(req.status)}</TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleViewPurchase(req);
+                              }}
+                            >
+                              View Details
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Approval Dialogs */}
       {selectedRequest && (
         <MaintenanceApprovalDialog
           request={selectedRequest}
           isOpen={isDialogOpen}
           onOpenChange={handleCloseDialog}
+        />
+      )}
+
+      {selectedPurchase && (
+        <PurchaseApprovalDialog
+          requisition={selectedPurchase}
+          isOpen={isPurchaseDialogOpen}
+          onOpenChange={handleClosePurchaseDialog}
         />
       )}
     </div>

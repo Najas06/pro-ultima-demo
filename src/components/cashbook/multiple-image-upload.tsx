@@ -14,6 +14,8 @@ interface MultipleImageUploadProps {
   maxImages?: number; // default 10
   maxSizeMB?: number; // default 10
   className?: string;
+  acceptAllTypes?: boolean; // If true, accept all file types instead of just images
+  label?: string; // Custom label text
 }
 
 interface ImagePreview {
@@ -26,7 +28,9 @@ export function MultipleImageUpload({
   onImagesChange, 
   maxImages = 10, 
   maxSizeMB = 10,
-  className 
+  className,
+  acceptAllTypes = false,
+  label = "Receipt/Bill Images (Optional)"
 }: MultipleImageUploadProps) {
   const [images, setImages] = useState<ImagePreview[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -39,16 +43,16 @@ export function MultipleImageUpload({
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 
     files.forEach((file, index) => {
-      // Type validation
-      if (!allowedTypes.includes(file.type)) {
-        errors.push(`Image ${index + 1}: Invalid type (${file.type}). Only JPG, PNG, WEBP allowed.`);
+      // Type validation - skip if acceptAllTypes is true
+      if (!acceptAllTypes && !allowedTypes.includes(file.type)) {
+        errors.push(`File ${index + 1}: Invalid type (${file.type}). Only JPG, PNG, WEBP allowed.`);
         return;
       }
       
       // Size validation
       if (file.size > maxSizeBytes) {
         const sizeMB = (file.size / 1024 / 1024).toFixed(2);
-        errors.push(`Image ${index + 1}: Too large (${sizeMB}MB). Max ${maxSizeMB}MB allowed.`);
+        errors.push(`File ${index + 1}: Too large (${sizeMB}MB). Max ${maxSizeMB}MB allowed.`);
         return;
       }
       
@@ -128,7 +132,7 @@ export function MultipleImageUpload({
 
   return (
     <div className={cn("space-y-4", className)}>
-      <Label>Receipt/Bill Images (Optional)</Label>
+      <Label>{label}</Label>
       
       {/* Upload Area */}
       <div
@@ -145,16 +149,16 @@ export function MultipleImageUpload({
       >
         <Upload className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
         <p className="text-sm text-muted-foreground mb-1">
-          Click to upload or drag and drop images here
+          Click to upload or drag and drop {acceptAllTypes ? 'files' : 'images'} here
         </p>
         <p className="text-xs text-muted-foreground">
-          Max {maxImages} images, {maxSizeMB}MB each (JPG, PNG, WEBP)
+          Max {maxImages} {acceptAllTypes ? 'files' : 'images'}, {maxSizeMB}MB each {!acceptAllTypes && '(JPG, PNG, WEBP)'}
         </p>
         <input
           ref={fileInputRef}
           type="file"
           multiple
-          accept="image/jpeg,image/jpg,image/png,image/webp"
+          accept={acceptAllTypes ? "*/*" : "image/jpeg,image/jpg,image/png,image/webp"}
           onChange={(e) => handleFileSelect(e.target.files)}
           className="hidden"
         />
@@ -224,11 +228,13 @@ export function MultipleImageUpload({
       <div className="flex items-start gap-2 text-xs text-muted-foreground">
         <AlertCircle className="h-3 w-3 mt-0.5 flex-shrink-0" />
         <div>
-          <p>• Maximum {maxImages} images allowed</p>
-          <p>• Each image must be ≤{maxSizeMB}MB</p>
-          <p>• Supported formats: JPG, PNG, WEBP</p>
+          <p>• Maximum {maxImages} {acceptAllTypes ? 'files' : 'images'} allowed</p>
+          <p>• Each {acceptAllTypes ? 'file' : 'image'} must be ≤{maxSizeMB}MB</p>
+          {!acceptAllTypes && <p>• Supported formats: JPG, PNG, WEBP</p>}
+          {acceptAllTypes && <p>• All file types accepted (images, documents, ZIP, etc.)</p>}
         </div>
       </div>
     </div>
   );
 }
+
