@@ -22,6 +22,7 @@ export interface Task {
   delegated_by_staff_name?: string | null; // Name of staff who delegated (for display)
   delegated_to_staff_id?: string | null; // ID of staff who received delegation
   delegated_to_staff_name?: string | null; // Name of staff who received delegation
+  delegation_notes?: string | null; // Notes provided during delegation
 }
 
 export interface TaskAssignment {
@@ -58,6 +59,8 @@ export interface Staff {
   profile_image_url?: string | null;
   created_at: string;
   updated_at: string;
+  is_online?: boolean;        // Online/offline status
+  last_seen?: string;          // Last activity timestamp
 }
 
 // Team types

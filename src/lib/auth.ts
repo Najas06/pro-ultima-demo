@@ -87,11 +87,35 @@ export async function authenticateStaff(email: string, password: string): Promis
       return null;
     }
 
-    // Update last login time
+    // Update last login time and set online status
     await supabase
       .from('staff')
-      .update({ last_login: new Date().toISOString() })
+      .update({ 
+        last_login: new Date().toISOString(),
+        is_online: true,
+        last_seen: new Date().toISOString()
+      })
       .eq('id', staffData.id);
+
+    // Create attendance record for today
+    const today = new Date().toISOString().split('T')[0];
+    const { data: existingAttendance } = await supabase
+      .from('attendance')
+      .select('*')
+      .eq('staff_id', staffData.id)
+      .eq('date', today)
+      .single();
+
+    if (!existingAttendance) {
+      await supabase
+        .from('attendance')
+        .insert({
+          staff_id: staffData.id,
+          login_time: new Date().toISOString(),
+          date: today,
+          status: 'active',
+        });
+    }
 
     return {
       id: staffData.id, // Staff table ID

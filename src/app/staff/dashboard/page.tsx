@@ -3,12 +3,9 @@
 import { useAuth } from '@/contexts/auth-context';
 import { useTasks } from '@/hooks/use-tasks';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { ListTodo, CheckCircle2, Clock, AlertCircle, ArrowRight } from 'lucide-react';
-import Link from 'next/link';
+import { ListTodo, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Badge } from '@/components/ui/badge';
-import { format } from 'date-fns';
+import { StaffTasksTable } from '@/components/staff/staff-tasks-table';
 
 export default function StaffDashboard() {
   const { user } = useAuth();
@@ -22,22 +19,6 @@ export default function StaffDashboard() {
   const todoTasks = myTasks.filter(t => t.status === 'todo');
   const inProgressTasks = myTasks.filter(t => t.status === 'in_progress');
   const completedTasks = myTasks.filter(t => t.status === 'completed');
-
-  // Get urgent tasks (high/urgent priority and due soon)
-  const urgentTasks = myTasks.filter(t => 
-    (t.priority === 'high' || t.priority === 'urgent') && 
-    t.status !== 'completed'
-  ).slice(0, 5);
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'urgent': return 'destructive';
-      case 'high': return 'default';
-      case 'medium': return 'secondary';
-      case 'low': return 'outline';
-      default: return 'secondary';
-    }
-  };
 
   return (
     <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
@@ -114,21 +95,12 @@ export default function StaffDashboard() {
         </div>
       )}
 
-      {/* Quick Actions */}
-      <div className="flex gap-4">
-        <Link href="/staff/tasks" className="flex-1">
-          <Button className="w-full bg-purple-600 hover:bg-purple-700">
-            <ListTodo className="mr-2 h-4 w-4" />
-            View All Tasks
-          </Button>
-        </Link>
-      </div>
 
-      {/* Urgent Tasks */}
+      {/* My Tasks Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Urgent & High Priority Tasks</CardTitle>
-          <CardDescription>Tasks that need your immediate attention</CardDescription>
+          <CardTitle>My Tasks</CardTitle>
+          <CardDescription>All tasks assigned to you</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -137,44 +109,8 @@ export default function StaffDashboard() {
                 <Skeleton key={i} className="h-20 w-full" />
               ))}
             </div>
-          ) : urgentTasks.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <CheckCircle2 className="mx-auto h-12 w-12 mb-2 opacity-20" />
-              <p>No urgent tasks! You&apos;re all caught up.</p>
-            </div>
           ) : (
-            <div className="space-y-3">
-              {urgentTasks.map((task) => (
-                <div
-                  key={task.id}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h4 className="font-medium">{task.title}</h4>
-                      <Badge variant={getPriorityColor(task.priority) as any}>
-                        {task.priority}
-                      </Badge>
-                    </div>
-                    {task.description && (
-                      <p className="text-sm text-muted-foreground line-clamp-1">
-                        {task.description}
-                      </p>
-                    )}
-                    {task.due_date && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Due: {format(new Date(task.due_date), 'MMM dd, yyyy')}
-                      </p>
-                    )}
-                  </div>
-                  <Link href="/staff/tasks">
-                    <Button variant="ghost" size="sm">
-                      <ArrowRight className="h-4 w-4" />
-                    </Button>
-                  </Link>
-                </div>
-              ))}
-            </div>
+            <StaffTasksTable tasks={myTasks} />
           )}
         </CardContent>
       </Card>

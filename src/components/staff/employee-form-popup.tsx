@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useSystemOptions } from "@/hooks/use-system-options";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -52,6 +53,11 @@ export function EmployeeFormPopup() {
     branch: "",
     phone: "",
   });
+
+  // ============================================
+  // SYSTEM OPTIONS: Dynamic roles, departments, branches
+  // ============================================
+  const { roles, departments, branches } = useSystemOptions();
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
@@ -383,23 +389,7 @@ export function EmployeeFormPopup() {
     fetchEmployees();
   }, []);
 
-  const roles = [
-    "Team Leader",
-    "Project Manager",
-    "Detailer",
-    "Admin",
-    "Accountant"
-  ];
-
-  const branches = [
-    "Salem",
-    "Chennai",
-    "Salem Elcot",
-    "Kanchipuram",
-    "Madurai",
-    "Rajapalayam",
-    "Housr"
-  ];
+  // Dynamic options from database (already fetched via useSystemOptions hook above)
 
   return (
     <div className="space-y-6">

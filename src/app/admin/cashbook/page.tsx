@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,10 +12,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { RefreshCw, Download, TrendingUp } from 'lucide-react';
+import { RefreshCw, Download, TrendingUp, Eye } from 'lucide-react';
 import { CashSummaryCards } from '@/components/cashbook/cash-summary-cards';
+import { TransactionDetailsDialog } from '@/components/admin/transaction-details-dialog';
 import { useCashTransactions } from '@/hooks/use-cash-transactions';
+import { useOpeningBalance } from '@/hooks/use-opening-balance';
 import { useStaff } from '@/hooks/use-staff';
+import type { CashTransaction } from '@/types/cashbook';
 
 export default function AdminCashbookPage() {
   const [selectedBranch, setSelectedBranch] = useState<string>('all');
@@ -24,8 +27,11 @@ export default function AdminCashbookPage() {
   const [endDate, setEndDate] = useState('');
   const [billStatusFilter, setBillStatusFilter] = useState<string>('all');
   const [expenseCategoryFilter, setExpenseCategoryFilter] = useState<string>('all');
+  const [selectedTransaction, setSelectedTransaction] = useState<CashTransaction | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
   const { staff } = useStaff();
+  const { openingBalances } = useOpeningBalance();
   
   const {
     transactions,
@@ -41,6 +47,25 @@ export default function AdminCashbookPage() {
 
   // Get unique branches from staff
   const branches = Array.from(new Set(staff.map(s => s.branch).filter(Boolean))) as string[];
+
+  // Calculate grand total when "All Branches" is selected
+  const grandTotal = useMemo(() => {
+    if (selectedBranch !== 'all') return null;
+    
+    const allOpeningBalances = branches.reduce((sum, branch) => {
+      const branchBalance = openingBalances.find(ob => ob.branch === branch);
+      return sum + (branchBalance?.opening_balance || 0);
+    }, 0);
+    
+    return {
+      opening_balance: allOpeningBalances,
+      total_cash_in: transactions.reduce((sum, t) => sum + (t.cash_in || 0), 0),
+      total_cash_out: transactions.reduce((sum, t) => sum + (t.cash_out || 0), 0),
+      closing_balance: allOpeningBalances + 
+        transactions.reduce((sum, t) => sum + (t.cash_in || 0) - (t.cash_out || 0), 0),
+      transaction_count: transactions.length,
+    };
+  }, [selectedBranch, branches, openingBalances, transactions]);
 
   // Apply client-side filters
   const filteredTransactions = transactions.filter((t) => {
@@ -80,6 +105,70 @@ export default function AdminCashbookPage() {
         </div>
       </div>
 
+      {/* Grand Total Card - Only show when "All Branches" is selected */}
+      {selectedBranch === 'all' && grandTotal && (
+        <Card className="border-2 border-primary">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Grand Total - All Branches
+            </CardTitle>
+            <CardDescription>
+              Combined cash summary across all branches
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Opening Balance</p>
+                <p className="text-xl font-bold text-blue-600">
+                  ₹{grandTotal.opening_balance.toLocaleString('en-IN', { 
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2 
+                  })}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Total Cash In</p>
+                <p className="text-xl font-bold text-green-600">
+                  +₹{grandTotal.total_cash_in.toLocaleString('en-IN', { 
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2 
+                  })}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Total Cash Out</p>
+                <p className="text-xl font-bold text-red-600">
+                  -₹{grandTotal.total_cash_out.toLocaleString('en-IN', { 
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2 
+                  })}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Current Balance</p>
+                <p className={`text-xl font-bold ${
+                  grandTotal.closing_balance >= 0 ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  ₹{grandTotal.closing_balance.toLocaleString('en-IN', { 
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2 
+                  })}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Total Transactions</p>
+                <p className="text-xl font-bold">
+                  {grandTotal.transaction_count}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Summary Cards - Show for specific branch or when no grand total */}
       <CashSummaryCards summary={summary} />
 
       <Card>
@@ -210,18 +299,19 @@ export default function AdminCashbookPage() {
                   <th className="text-right p-2">Cash Out</th>
                   <th className="text-right p-2">Cash In</th>
                   <th className="text-right p-2">Balance</th>
+                  <th className="text-center p-2">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={11} className="text-center p-4">
+                    <td colSpan={12} className="text-center p-4">
                       Loading transactions...
                     </td>
                   </tr>
                 ) : filteredTransactions.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="text-center p-4 text-muted-foreground">
+                    <td colSpan={12} className="text-center p-4 text-muted-foreground">
                       No transactions found
                     </td>
                   </tr>
@@ -265,6 +355,19 @@ export default function AdminCashbookPage() {
                       <td className="p-2 text-right font-bold">
                         ₹{transaction.balance.toLocaleString('en-IN')}
                       </td>
+                      <td className="p-2 text-center">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedTransaction(transaction);
+                            setIsDetailsOpen(true);
+                          }}
+                        >
+                          <Eye className="h-3 w-3 mr-1" />
+                          View
+                        </Button>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -285,9 +388,10 @@ export default function AdminCashbookPage() {
             <div className="space-y-4">
               {branches.map((branch) => {
                 const branchTransactions = transactions.filter(t => t.branch === branch);
+                const branchOpeningBalance = openingBalances.find(ob => ob.branch === branch)?.opening_balance || 0;
                 const branchCashIn = branchTransactions.reduce((sum, t) => sum + (t.cash_in || 0), 0);
                 const branchCashOut = branchTransactions.reduce((sum, t) => sum + (t.cash_out || 0), 0);
-                const branchBalance = branchCashIn - branchCashOut;
+                const branchCurrentBalance = branchOpeningBalance + branchCashIn - branchCashOut;
 
                 return (
                   <div key={branch} className="flex items-center justify-between p-4 border rounded-lg">
@@ -298,6 +402,12 @@ export default function AdminCashbookPage() {
                       </p>
                     </div>
                     <div className="flex gap-6 text-sm">
+                      <div>
+                        <p className="text-muted-foreground">Opening</p>
+                        <p className="font-medium text-blue-600">
+                          ₹{branchOpeningBalance.toLocaleString('en-IN')}
+                        </p>
+                      </div>
                       <div>
                         <p className="text-muted-foreground">Cash In</p>
                         <p className="font-medium text-green-600">
@@ -311,9 +421,9 @@ export default function AdminCashbookPage() {
                         </p>
                       </div>
                       <div>
-                        <p className="text-muted-foreground">Net</p>
-                        <p className={`font-bold ${branchBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {branchBalance >= 0 ? '+' : ''}₹{branchBalance.toLocaleString('en-IN')}
+                        <p className="text-muted-foreground">Current Balance</p>
+                        <p className={`font-bold ${branchCurrentBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          ₹{branchCurrentBalance.toLocaleString('en-IN')}
                         </p>
                       </div>
                     </div>
@@ -324,6 +434,13 @@ export default function AdminCashbookPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Transaction Details Dialog */}
+      <TransactionDetailsDialog
+        transaction={selectedTransaction}
+        open={isDetailsOpen}
+        onOpenChange={setIsDetailsOpen}
+      />
     </div>
   );
 }

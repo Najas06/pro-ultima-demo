@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { authenticateUser, getCurrentUser, saveUser, clearUser } from '@/lib/auth';
+import { createClient } from '@/lib/supabase/client';
 import type { AuthUser, LoginCredentials, AuthContextType } from '@/types/auth';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -68,6 +69,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
+      // Set is_online to false if user is staff
+      if (user?.role && user.role !== 'admin' && user.id) {
+        const supabase = createClient();
+        await supabase
+          .from('staff')
+          .update({ is_online: false })
+          .eq('id', user.id);
+
+        // Update attendance record for today
+        const today = new Date().toISOString().split('T')[0];
+        await supabase
+          .from('attendance')
+          .update({
+            logout_time: new Date().toISOString(),
+            status: 'logged_out',
+          })
+          .eq('staff_id', user.id)
+          .eq('date', today);
+      }
+
       setUser(null);
       clearUser();
       toast.success('Logged out successfully');
